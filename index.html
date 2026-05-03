@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mirror</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;600;700&family=Barlow+Condensed:wght@300;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & Root ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #000000;
+      --surface:     rgba(255,255,255,0.04);
+      --border:      rgba(255,255,255,0.08);
+      --text-bright: #ffffff;
+      --text-main:   rgba(255,255,255,0.85);
+      --text-dim:    rgba(255,255,255,0.40);
+      --text-faint:  rgba(255,255,255,0.18);
+      --accent:      #e8f4fd;
+      --accent-blue: #4fc3f7;
+      --accent-gold: #ffd54f;
+      --live:        #ff4444;
+      --green:       #69f0ae;
+      --orange:      #ffab40;
+      --font-ui:     'Barlow', sans-serif;
+      --font-cond:   'Barlow Condensed', sans-serif;
+      --font-mono:   'Share Tech Mono', monospace;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      overflow: hidden;
+      cursor: none;
+    }
+
+    /* ── Screen Container ───────────────────────────────────────── */
+    #mirror {
+      width: 100vw; height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      padding: 48px 44px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.9s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .screen.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* ── Shared Header ──────────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+
+    .time-block {}
+    .time {
+      font-family: var(--font-cond);
+      font-size: clamp(72px, 10vw, 108px);
+      font-weight: 700;
+      letter-spacing: -2px;
+      line-height: 1;
+      color: var(--text-bright);
+    }
+    .date {
+      font-family: var(--font-cond);
+      font-size: 18px;
+      font-weight: 300;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-top: 6px;
+    }
+
+    .greeting {
+      font-family: var(--font-cond);
+      font-size: clamp(20px, 2.5vw, 28px);
+      font-weight: 300;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      text-align: right;
+      margin-top: 12px;
+    }
+    .greeting span {
+      color: var(--text-bright);
+      font-weight: 600;
+    }
+
+    /* ── Screen Indicator ───────────────────────────────────────── */
+    #indicator {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      z-index: 100;
+    }
+    .dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--text-faint);
+      transition: all 0.4s ease;
+    }
+    .dot.active {
+      background: var(--text-dim);
+      width: 20px;
+      border-radius: 3px;
+    }
+
+    /* ── Progress bar ───────────────────────────────────────────── */
+    #progress-bar {
+      position: fixed;
+      bottom: 0; left: 0;
+      height: 2px;
+      background: rgba(255,255,255,0.12);
+      z-index: 100;
+      transition: width 1s linear;
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+       SCREEN 1 — DASHBOARD
+    ══════════════════════════════════════════════════════════════ */
+    #screen-1 {
+      grid-template-rows: auto 1fr;
+      grid-template-columns: 1fr auto;
+      gap: 0 40px;
+    }
+
+    #screen-1 .header {
+      grid-column: 1 / -1;
+      margin-bottom: 36px;
+    }
+
+    /* Left column */
+    .s1-left {
+      display: flex;
+      flex-direction: column;
+      gap: 36px;
+    }
+
+    /* Right column — selfies */
+    .s1-right {
+      width: clamp(140px, 18vw, 220px);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ── Games ──────────────────────────────────────────────────── */
+    #games-section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .section-label {
+      font-family: var(--font-cond);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      margin-bottom: 4px;
+    }
+
+    .game-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+    .game-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+    }
+    .game-card.nhl::before { background: #4fc3f7; }
+    .game-card.nfl::before { background: #69f0ae; }
+
+    .game-league {
+      font-family: var(--font-cond);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      color: var(--text-faint);
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      transform: rotate(180deg);
+    }
+
+    .game-teams {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .game-matchup {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .team-logo {
+      width: 28px; height: 28px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 4px rgba(255,255,255,0.1));
+    }
+    .team-logo-placeholder {
+      width: 28px; height: 28px;
+      background: var(--border);
+      border-radius: 4px;
+    }
+
+    .team-info {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .team-abbr {
+      font-family: var(--font-cond);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-bright);
+      letter-spacing: 1px;
+    }
+    .team-abbr.tracked {
+      color: var(--accent-blue);
+    }
+    .nfl .team-abbr.tracked { color: var(--green); }
+
+    .team-score {
+      font-family: var(--font-mono);
+      font-size: 24px;
+      color: var(--text-bright);
+      min-width: 32px;
+      text-align: right;
+    }
+
+    .game-separator {
+      height: 1px;
+      background: var(--border);
+      margin: 2px 0;
+    }
+
+    .game-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 4px;
+    }
+
+    .game-datetime {
+      font-family: var(--font-cond);
+      font-size: 13px;
+      font-weight: 300;
+      color: var(--text-dim);
+      letter-spacing: 1px;
+    }
+
+    .game-status {
+      font-family: var(--font-cond);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .game-status.live {
+      color: var(--live);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .game-status.final { color: var(--text-dim); }
+    .game-status.upcoming { color: var(--text-faint); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .no-games {
+      font-family: var(--font-cond);
+      font-size: 14px;
+      color: var(--text-faint);
+      letter-spacing: 2px;
+    }
+
+    /* ── Weather / Misc spacer ──────────────────────────────────── */
+    .s1-spacer { flex: 1; }
+
+    /* ── Selfie Column ──────────────────────────────────────────── */
+    .selfie-slot {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+    }
+
+    .selfie-label {
+      font-family: var(--font-cond);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      text-align: center;
+    }
+
+    .selfie-img-wrap {
+      flex: 1;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      position: relative;
+      aspect-ratio: 3/4;
+    }
+
+    .selfie-img-wrap img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .selfie-placeholder {
+      width: 100%; height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .selfie-placeholder svg {
+      opacity: 0.15;
+    }
+    .selfie-placeholder span {
+      font-family: var(--font-cond);
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--text-faint);
+      text-align: center;
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+       SCREEN 2 — STRAVA
+    ══════════════════════════════════════════════════════════════ */
+    #screen-2 {
+      grid-template-rows: auto auto auto 1fr;
+      gap: 0;
+    }
+
+    #screen-2 .header {
+      margin-bottom: 32px;
+    }
+
+    /* ── Stat Cards Row ─────────────────────────────────────────── */
+    #strava-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #4fc3f7, transparent);
+    }
+
+    .stat-label {
+      font-family: var(--font-cond);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-family: var(--font-cond);
+      font-size: clamp(28px, 3.5vw, 42px);
+      font-weight: 700;
+      color: var(--text-bright);
+      line-height: 1;
+    }
+
+    .stat-unit {
+      font-family: var(--font-cond);
+      font-size: 14px;
+      font-weight: 300;
+      color: var(--text-dim);
+      margin-left: 3px;
+    }
+
+    .stat-sub {
+      font-family: var(--font-cond);
+      font-size: 12px;
+      color: var(--text-faint);
+      margin-top: 4px;
+      letter-spacing: 1px;
+    }
+
+    /* ── Activity Heatmap ───────────────────────────────────────── */
+    #heatmap-section {
+      margin-bottom: 20px;
+    }
+
+    #heatmap-section .section-label {
+      margin-bottom: 12px;
+    }
+
+    #heatmap {
+      display: flex;
+      gap: 3px;
+      align-items: flex-end;
+      overflow: hidden;
+    }
+
+    .heatmap-col {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .heatmap-cell {
+      width: 12px; height: 12px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.05);
+      transition: background 0.3s;
+    }
+    .heatmap-cell[data-level="1"] { background: rgba(79,195,247,0.2); }
+    .heatmap-cell[data-level="2"] { background: rgba(79,195,247,0.45); }
+    .heatmap-cell[data-level="3"] { background: rgba(79,195,247,0.70); }
+    .heatmap-cell[data-level="4"] { background: rgba(79,195,247,1.00); }
+
+    /* ── Month Labels ────────────────────────────────────────────── */
+    #heatmap-months {
+      display: flex;
+      gap: 3px;
+      margin-bottom: 4px;
+      overflow: hidden;
+    }
+    .month-label {
+      font-family: var(--font-cond);
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      width: 12px; /* same as cell */
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .heatmap-legend {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .heatmap-legend span {
+      font-family: var(--font-cond);
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--text-faint);
+    }
+    .legend-cells {
+      display: flex;
+      gap: 3px;
+    }
+    .legend-cell {
+      width: 10px; height: 10px;
+      border-radius: 1px;
+    }
+
+    /* ── Recent Walks ────────────────────────────────────────────── */
+    #recent-walks {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .walk-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .walk-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .walk-date {
+      font-family: var(--font-cond);
+      font-size: 12px;
+      letter-spacing: 2px;
+      color: var(--text-dim);
+      min-width: 80px;
+      text-transform: uppercase;
+    }
+
+    .walk-name {
+      flex: 1;
+      font-family: var(--font-ui);
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .walk-dist {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      color: var(--accent-blue);
+    }
+
+    .walk-time {
+      font-family: var(--font-cond);
+      font-size: 12px;
+      color: var(--text-dim);
+      min-width: 40px;
+      text-align: right;
+    }
+
+    /* ── Loading / Error states ─────────────────────────────────── */
+    .loading-pulse {
+      width: 60px; height: 16px;
+      background: var(--surface);
+      border-radius: 4px;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+    @keyframes shimmer {
+      0%, 100% { opacity: 0.3; }
+      50%       { opacity: 0.7; }
+    }
+
+    /* ── Capture Flash ──────────────────────────────────────────── */
+    #flash {
+      position: fixed;
+      inset: 0;
+      background: white;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 999;
+      transition: opacity 0.05s;
+    }
+    #flash.on { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div id="mirror">
+  <!-- ══ SCREEN 1: DASHBOARD ══ -->
+  <div class="screen active" id="screen-1">
+    <div class="header">
+      <div class="time-block">
+        <div class="time" id="s1-time">--:--</div>
+        <div class="date" id="s1-date">--- -- ----</div>
+      </div>
+      <div class="greeting">Good <span id="greeting-period">--</span>,<br><span>Zach</span></div>
+    </div>
+
+    <div class="s1-left">
+      <!-- Games -->
+      <div id="games-section">
+        <div class="section-label">Upcoming Games</div>
+        <div id="games-list">
+          <div class="loading-pulse"></div>
+        </div>
+      </div>
+
+      <div class="s1-spacer"></div>
+    </div>
+
+    <!-- Selfie column -->
+    <div class="s1-right" id="selfie-col">
+      <!-- populated by JS -->
+    </div>
+  </div>
+
+  <!-- ══ SCREEN 2: STRAVA ══ -->
+  <div class="screen" id="screen-2">
+    <div class="header">
+      <div class="time-block">
+        <div class="time" id="s2-time">--:--</div>
+        <div class="date" id="s2-date">--- -- ----</div>
+      </div>
+      <div class="greeting">Strava<br><span>Activity</span></div>
+    </div>
+
+    <!-- Stat cards -->
+    <div id="strava-stats">
+      <div class="stat-card">
+        <div class="stat-label">YTD Distance</div>
+        <div><span class="stat-value" id="st-ytd-dist">--</span><span class="stat-unit">km</span></div>
+        <div class="stat-sub" id="st-ytd-walks">-- walks</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">YTD Time</div>
+        <div><span class="stat-value" id="st-ytd-time">--</span><span class="stat-unit">hrs</span></div>
+        <div class="stat-sub">this year</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Last 4 Weeks</div>
+        <div><span class="stat-value" id="st-recent-dist">--</span><span class="stat-unit">km</span></div>
+        <div class="stat-sub" id="st-recent-walks">-- walks</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">All-Time</div>
+        <div><span class="stat-value" id="st-all-dist">--</span><span class="stat-unit">km</span></div>
+        <div class="stat-sub" id="st-all-walks">-- walks</div>
+      </div>
+    </div>
+
+    <!-- Heatmap -->
+    <div id="heatmap-section">
+      <div class="section-label">Activity Heatmap — Past Year</div>
+      <div id="heatmap-months"></div>
+      <div id="heatmap"></div>
+      <div class="heatmap-legend">
+        <span>Less</span>
+        <div class="legend-cells">
+          <div class="legend-cell" style="background:rgba(255,255,255,0.05)"></div>
+          <div class="legend-cell" style="background:rgba(79,195,247,0.2)"></div>
+          <div class="legend-cell" style="background:rgba(79,195,247,0.45)"></div>
+          <div class="legend-cell" style="background:rgba(79,195,247,0.70)"></div>
+          <div class="legend-cell" style="background:rgba(79,195,247,1.00)"></div>
+        </div>
+        <span>More</span>
+      </div>
+    </div>
+
+    <!-- Recent walks -->
+    <div id="recent-walks">
+      <div class="section-label">Recent Walks</div>
+      <div class="walk-list" id="walk-list">
+        <div class="loading-pulse"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Flash overlay for selfie -->
+<div id="flash"></div>
+
+<!-- Screen indicator -->
+<div id="indicator">
+  <div class="dot active" data-idx="0"></div>
+  <div class="dot" data-idx="1"></div>
+</div>
+
+<!-- Progress bar -->
+<div id="progress-bar"></div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────────────────────
+const ROTATE_MS    = 60000;   // 60 seconds per screen
+const REFRESH_GAMES_MS   = 60000;
+const REFRESH_STRAVA_MS  = 300000; // 5 min
+const API = '';  // same origin
+
+// ── Clock ──────────────────────────────────────────────────────────────────
+function updateClocks() {
+  const now = new Date();
+  const h   = now.getHours();
+  const m   = String(now.getMinutes()).padStart(2, '0');
+  const ampm = h >= 12 ? 'pm' : 'am';
+  const h12  = String(h % 12 || 12);
+  const timeStr = `${h12}:${m} ${ampm}`;
+  const dateStr = now.toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric'
+  }).toUpperCase();
+
+  document.getElementById('s1-time').textContent = timeStr;
+  document.getElementById('s2-time').textContent = timeStr;
+  document.getElementById('s1-date').textContent = dateStr;
+  document.getElementById('s2-date').textContent = dateStr;
+
+  const period = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening';
+  document.getElementById('greeting-period').textContent = period;
+}
+setInterval(updateClocks, 1000);
+updateClocks();
+
+// ── Screen Rotation ────────────────────────────────────────────────────────
+const screens = document.querySelectorAll('.screen');
+const dots    = document.querySelectorAll('.dot');
+const progress = document.getElementById('progress-bar');
+let currentIdx = 0;
+let rotateTimer, progressTimer, progressStart;
+
+function goToScreen(idx) {
+  screens[currentIdx].classList.remove('active');
+  dots[currentIdx].classList.remove('active');
+  currentIdx = idx % screens.length;
+  screens[currentIdx].classList.add('active');
+  dots[currentIdx].classList.add('active');
+  startProgress();
+}
+
+function startProgress() {
+  if (progressTimer) clearInterval(progressTimer);
+  progressStart = Date.now();
+  progress.style.transition = 'none';
+  progress.style.width = '0%';
+  requestAnimationFrame(() => {
+    progress.style.transition = `width ${ROTATE_MS}ms linear`;
+    progress.style.width = '100%';
+  });
+}
+
+function scheduleRotate() {
+  if (rotateTimer) clearTimeout(rotateTimer);
+  rotateTimer = setTimeout(() => {
+    goToScreen((currentIdx + 1) % screens.length);
+    scheduleRotate();
+  }, ROTATE_MS);
+}
+
+scheduleRotate();
+startProgress();
+
+// ── Games ──────────────────────────────────────────────────────────────────
+async function loadGames() {
+  const list = document.getElementById('games-list');
+  try {
+    const res  = await fetch(`${API}/api/games`);
+    const data = await res.json();
+    const games = data.games || [];
+
+    if (games.length === 0) {
+      list.innerHTML = `<span class="no-games">NO GAMES WITHIN 7 DAYS</span>`;
+      return;
+    }
+
+    list.innerHTML = games.map(g => {
+      const isTracked = (abbr) =>
+        (g.sport === 'nhl' && abbr === 'FLA') ||
+        (g.sport === 'nfl' && abbr === 'DAL');
+
+      let statusHtml;
+      if (g.isLive) {
+        statusHtml = `<span class="game-status live">● LIVE${g.statusDetail ? ' · ' + g.statusDetail : ''}</span>`;
+      } else if (g.isFinal) {
+        statusHtml = `<span class="game-status final">FINAL</span>`;
+      } else {
+        statusHtml = `<span class="game-status upcoming">${g.displayTime}</span>`;
+      }
+
+      const logoOrPlaceholder = (logo, abbr) =>
+        logo
+          ? `<img class="team-logo" src="${logo}" alt="${abbr}" />`
+          : `<div class="team-logo-placeholder"></div>`;
+
+      return `
+        <div class="game-card ${g.sport}">
+          <div class="game-league">${g.league}</div>
+          <div class="game-teams">
+            <div class="game-matchup">
+              ${logoOrPlaceholder(g.awayLogo, g.awayTeam)}
+              <div class="team-info">
+                <span class="team-abbr${isTracked(g.awayTeam) ? ' tracked' : ''}">${g.awayTeam}</span>
+                ${(g.isLive || g.isFinal) ? `<span class="team-score">${g.awayScore}</span>` : ''}
+              </div>
+            </div>
+            <div class="game-separator"></div>
+            <div class="game-matchup">
+              ${logoOrPlaceholder(g.homeLogo, g.homeTeam)}
+              <div class="team-info">
+                <span class="team-abbr${isTracked(g.homeTeam) ? ' tracked' : ''}">${g.homeTeam}</span>
+                ${(g.isLive || g.isFinal) ? `<span class="team-score">${g.homeScore}</span>` : ''}
+              </div>
+            </div>
+            <div class="game-meta">
+              <span class="game-datetime">${g.displayDate}</span>
+              ${statusHtml}
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (err) {
+    list.innerHTML = `<span class="no-games">GAMES UNAVAILABLE</span>`;
+    console.error('Games error:', err);
+  }
+}
+
+loadGames();
+setInterval(loadGames, REFRESH_GAMES_MS);
+
+// ── Selfies ────────────────────────────────────────────────────────────────
+async function loadSelfies() {
+  const col = document.getElementById('selfie-col');
+  try {
+    const res  = await fetch(`${API}/api/selfies`);
+    const data = await res.json();
+    const selfies = data.selfies || [];
+
+    const milestones = selfies.length > 0 ? selfies : [
+      { monthsAgo: 1,  url: null },
+      { monthsAgo: 6,  url: null },
+      { monthsAgo: 12, url: null },
+    ];
+
+    col.innerHTML = milestones.map(s => {
+      const label = s.monthsAgo === 1 ? '1 MO AGO' :
+                    s.monthsAgo === 6 ? '6 MO AGO' : '1 YR AGO';
+      const imgHtml = s.url
+        ? `<img src="${s.url}" alt="${label}" />`
+        : `<div class="selfie-placeholder">
+             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5">
+               <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+             </svg>
+             <span>NOT<br>YET</span>
+           </div>`;
+
+      return `
+        <div class="selfie-slot">
+          <div class="selfie-label">${label}</div>
+          <div class="selfie-img-wrap">${imgHtml}</div>
+        </div>`;
+    }).join('');
+  } catch (err) {
+    console.error('Selfies error:', err);
+  }
+}
+
+loadSelfies();
+
+// ── Strava ─────────────────────────────────────────────────────────────────
+async function loadStravaStats() {
+  try {
+    const res  = await fetch(`${API}/api/strava/stats`);
+    const data = await res.json();
+
+    document.getElementById('st-ytd-dist').textContent  = data.ytd?.distance   || '--';
+    document.getElementById('st-ytd-walks').textContent  = `${data.ytd?.count || '--'} walks`;
+    document.getElementById('st-ytd-time').textContent  = data.ytd?.movingTime  || '--';
+    document.getElementById('st-recent-dist').textContent = data.recent?.distance || '--';
+    document.getElementById('st-recent-walks').textContent = `${data.recent?.count || '--'} walks`;
+    document.getElementById('st-all-dist').textContent  = data.allTime?.distance || '--';
+    document.getElementById('st-all-walks').textContent  = `${data.allTime?.count || '--'} walks`;
+  } catch (err) {
+    console.error('Strava stats error:', err);
+  }
+}
+
+async function loadStravaActivities() {
+  try {
+    const res  = await fetch(`${API}/api/strava/activities`);
+    const data = await res.json();
+    const activities = data.activities || [];
+
+    // Build heatmap
+    buildHeatmap(activities);
+
+    // Recent walks list (last 8)
+    const sorted = [...activities].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
+    const list = document.getElementById('walk-list');
+    if (sorted.length === 0) {
+      list.innerHTML = `<span class="no-games">NO RECENT WALKS</span>`;
+      return;
+    }
+    list.innerHTML = sorted.map(w => {
+      const d = new Date(w.date + 'T00:00:00');
+      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+      const mins = Math.round(w.movingTime / 60);
+      const timeStr = mins >= 60 ? `${Math.floor(mins/60)}h${mins%60}m` : `${mins}m`;
+      return `
+        <div class="walk-item">
+          <span class="walk-date">${dateStr}</span>
+          <span class="walk-name">${w.name}</span>
+          <span class="walk-dist">${w.distance} km</span>
+          <span class="walk-time">${timeStr}</span>
+        </div>`;
+    }).join('');
+  } catch (err) {
+    console.error('Strava activities error:', err);
+  }
+}
+
+function buildHeatmap(activities) {
+  const heatmapEl = document.getElementById('heatmap');
+  const monthsEl  = document.getElementById('heatmap-months');
+
+  // Build a map of date → distance
+  const dateMap = {};
+  activities.forEach(a => {
+    dateMap[a.date] = (dateMap[a.date] || 0) + parseFloat(a.distance);
+  });
+
+  const maxDist = Math.max(...Object.values(dateMap), 1);
+
+  // Build weeks from today going back 52 weeks
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(start.getDate() - 364);
+  // Align to Sunday
+  start.setDate(start.getDate() - start.getDay());
+
+  const weeks = [];
+  let cur = new Date(start);
+  while (cur <= today) {
+    const week = [];
+    for (let d = 0; d < 7; d++) {
+      const dateStr = cur.toISOString().split('T')[0];
+      const dist = dateMap[dateStr] || 0;
+      let level = 0;
+      if (dist > 0)          level = 1;
+      if (dist >= maxDist * 0.25) level = 2;
+      if (dist >= maxDist * 0.50) level = 3;
+      if (dist >= maxDist * 0.75) level = 4;
+      week.push({ dateStr, level, future: cur > today });
+      cur.setDate(cur.getDate() + 1);
+    }
+    weeks.push(week);
+  }
+
+  // Render months row
+  const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  let lastMonth = -1;
+  monthsEl.innerHTML = weeks.map((week, wi) => {
+    const firstDay = new Date(week[0].dateStr);
+    const mo = firstDay.getMonth();
+    if (mo !== lastMonth) {
+      lastMonth = mo;
+      return `<div class="month-label" style="flex:0 0 ${(12 + 3)}px">${months[mo]}</div>`;
+    }
+    return `<div class="month-label" style="flex:0 0 ${(12 + 3)}px"></div>`;
+  }).join('');
+
+  // Render heatmap cells
+  heatmapEl.innerHTML = weeks.map(week =>
+    `<div class="heatmap-col">` +
+    week.map(cell => {
+      if (cell.future) return `<div class="heatmap-cell"></div>`;
+      return `<div class="heatmap-cell" data-level="${cell.level}" title="${cell.dateStr}"></div>`;
+    }).join('') +
+    `</div>`
+  ).join('');
+}
+
+loadStravaStats();
+loadStravaActivities();
+setInterval(loadStravaStats, REFRESH_STRAVA_MS);
+setInterval(loadStravaActivities, REFRESH_STRAVA_MS);
+
+// ── Selfie capture (button press via keyboard in dev, or API call) ──────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'c' || e.key === 'C') triggerCapture();
+});
+
+async function triggerCapture() {
+  // Flash effect
+  const flash = document.getElementById('flash');
+  flash.classList.add('on');
+  setTimeout(() => flash.classList.remove('on'), 120);
+
+  try {
+    await fetch(`${API}/api/selfie/capture`, { method: 'POST' });
+    // Reload selfies after short delay
+    setTimeout(loadSelfies, 3000);
+  } catch (err) {
+    console.error('Capture failed:', err);
+  }
+}
+</script>
+</body>
+</html>
