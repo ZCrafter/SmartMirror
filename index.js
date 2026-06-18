@@ -16,7 +16,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 // ─── NHL / NFL Score API ──────────────────────────────────────────────────────
 // Uses free ESPN API — no key required
 const TEAMS = {
-  nhl: { id: '13', name: 'Florida Panthers', abbr: 'FLA', league: 'nhl' },
+  nhl: { id: '26', name: 'Florida Panthers', abbr: 'FLA', league: 'nhl' },
   nfl: { id: '6',  name: 'Dallas Cowboys',   abbr: 'DAL', league: 'nfl' },
 };
 
@@ -27,7 +27,11 @@ async function fetchUpcomingGames() {
 
   for (const [sport, team] of Object.entries(TEAMS)) {
     try {
-      const season = sport === 'nfl' ? '2025' : '20252026';
+      const now2 = new Date();
+      const yr = now2.getFullYear();
+      // NHL season spans two years; if before August use current/prev, else current/next
+      const nhlSeason = now2.getMonth() < 7 ? `${yr-1}${yr}` : `${yr}${yr+1}`;
+      const season = sport === 'nfl' ? String(yr) : nhlSeason;
       const url = `https://site.api.espn.com/apis/site/v2/sports/${sport === 'nhl' ? 'hockey' : 'football'}/${sport}/teams/${team.id}/schedule?season=${season}`;
       const res = await axios.get(url, { timeout: 5000 });
       const events = res.data?.events || [];
@@ -105,39 +109,51 @@ async function refreshStravaToken() {
 app.get('/api/strava/stats', async (req, res) => {
   try {
     const token = await refreshStravaToken();
+
     const athleteRes = await axios.get('https://www.strava.com/api/v3/athlete', {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    const statsRes = await axios.get(
-      `https://www.strava.com/api/v3/athletes/${athleteRes.data.id}/stats`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+    // Calculate stats from activities directly — Strava walk_totals are unreliable
+    const oneYearAgo = Math.floor(Date.now() / 1000) - 365 * 24 * 60 * 60;
+    const [yearRes, allRes] = await Promise.all([
+      axios.get('https://www.strava.com/api/v3/athlete/activities', {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { after: oneYearAgo, per_page: 200, sport_type: 'Walk' },
+      }),
+      axios.get('https://www.strava.com/api/v3/athlete/activities', {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { per_page: 200, sport_type: 'Walk' },
+      }),
+    ]);
 
-    const stats = statsRes.data;
-    const ytdWalk = stats.ytd_walk_totals || {};
-    const allWalk = stats.all_walk_totals || {};
-    const recentWalk = stats.recent_walk_totals || {};
+    const yearActs = yearRes.data || [];
+    const allActs  = allRes.data  || [];
+    const toMiles  = m => (m * 0.000621371);
+    const now      = new Date();
+    const startOfYear  = new Date(now.getFullYear(), 0, 1);
+    const fourWeeksAgo = new Date(now - 28 * 24 * 60 * 60 * 1000);
+
+    const ytdActs    = yearActs.filter(a => new Date(a.start_date) >= startOfYear);
+    const recentActs = yearActs.filter(a => new Date(a.start_date) >= fourWeeksAgo);
+
+    const sum = (arr, key) => arr.reduce((s, a) => s + (a[key] || 0), 0);
 
     res.json({
-      athlete: {
-        name: athleteRes.data.firstname,
-        avatar: athleteRes.data.profile,
-      },
+      athlete: { name: athleteRes.data.firstname, avatar: athleteRes.data.profile },
       ytd: {
-        distance: (ytdWalk.distance / 1000).toFixed(1),
-        count: ytdWalk.count || 0,
-        movingTime: Math.round((ytdWalk.moving_time || 0) / 3600),
-        elevation: Math.round(ytdWalk.elevation_gain || 0),
+        distance: toMiles(sum(ytdActs, 'distance')).toFixed(1),
+        count:    ytdActs.length,
+        movingTime: Math.round(sum(ytdActs, 'moving_time') / 3600),
       },
       allTime: {
-        distance: (allWalk.distance / 1000).toFixed(1),
-        count: allWalk.count || 0,
+        distance: toMiles(sum(allActs, 'distance')).toFixed(1),
+        count:    allActs.length,
       },
       recent: {
-        distance: ((recentWalk.distance || 0) / 1000).toFixed(1),
-        count: recentWalk.count || 0,
-        movingTime: Math.round((recentWalk.moving_time || 0) / 3600),
+        distance: toMiles(sum(recentActs, 'distance')).toFixed(1),
+        count:    recentActs.length,
+        movingTime: Math.round(sum(recentActs, 'moving_time') / 3600),
       },
     });
   } catch (err) {
@@ -159,7 +175,7 @@ app.get('/api/strava/activities', async (req, res) => {
 
     const activities = activitiesRes.data.map(a => ({
       date: a.start_date_local.split('T')[0],
-      distance: (a.distance / 1000).toFixed(2),
+      distance: (a.distance * 0.000621371).toFixed(2),
       movingTime: a.moving_time,
       name: a.name,
     }));
@@ -213,7 +229,7 @@ app.get('/api/selfies', async (req, res) => {
       return {
         monthsAgo: months,
         id: asset?.id || null,
-        url: asset ? `${immichUrl}/api/assets/${asset.id}/thumbnail?size=preview` : null,
+        url: asset ? `/api/selfie/thumb/${asset.id}` : null,
         date: asset?.fileCreatedAt || null,
       };
     });
@@ -225,14 +241,121 @@ app.get('/api/selfies', async (req, res) => {
   }
 });
 
+
+// ─── Selfie thumbnail proxy (avoids CORS + handles Immich auth via header) ───
+app.get('/api/selfie/thumb/:id', async (req, res) => {
+  try {
+    const immichUrl = process.env.IMMICH_URL;
+    const immichKey = process.env.IMMICH_API_KEY;
+    const response  = await axios.get(
+      `${immichUrl}/api/assets/${req.params.id}/thumbnail?size=preview`,
+      {
+        headers:      { 'x-api-key': immichKey },
+        responseType: 'stream',
+        timeout:      10000,
+      }
+    );
+    res.set('Content-Type', response.headers['content-type'] || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400');
+    response.data.pipe(res);
+  } catch (err) {
+    console.error('Thumb proxy error:', err.message);
+    res.status(500).send('Image unavailable');
+  }
+});
+
 // Trigger webcam capture via Python script, save to Immich
 app.post('/api/selfie/capture', (req, res) => {
-  exec('python3 /home/pi/mirror/scripts/capture.py', (err, stdout, stderr) => {
+  const scriptPath = path.join(__dirname, '../scripts/capture.py');
+  exec(`python3 ${scriptPath}`, (err, stdout, stderr) => {
     if (err) {
       console.error('Capture error:', stderr);
       return res.status(500).json({ error: 'Capture failed' });
     }
     res.json({ success: true, output: stdout });
+  });
+});
+
+// ─── WLED Lighting Control ────────────────────────────────────────────────────
+const WLED_URL = process.env.WLED_URL; // e.g. http://192.168.1.50
+
+async function wledSetState(state) {
+  if (!WLED_URL) {
+    console.log('WLED_URL not set in .env — skipping lighting control');
+    return;
+  }
+  try {
+    await axios.post(`${WLED_URL}/json/state`, state, { timeout: 3000 });
+  } catch (err) {
+    console.error('WLED control error:', err.message);
+  }
+}
+
+// Solid white at a given brightness (0-255), used during countdown ramp
+async function wledCountdownStep(stepIndex, totalSteps) {
+  // Ramp brightness from ~25% to 100% as countdown approaches 0
+  const minBrightness = 60;
+  const maxBrightness = 255;
+  const brightness = Math.round(
+    minBrightness + ((maxBrightness - minBrightness) * (stepIndex / totalSteps))
+  );
+  await wledSetState({
+    on: true,
+    bri: brightness,
+    seg: [{ col: [[255, 255, 255]], fx: 0 }], // fx:0 = solid color, no effect
+  });
+}
+
+// Restore the default WLED preset/state (whatever you've already configured)
+async function wledRestoreDefault() {
+  // If you saved your default look as a WLED preset, call it by ID here.
+  // Find your preset ID in the WLED UI under Presets, then set WLED_DEFAULT_PRESET in .env
+  const presetId = process.env.WLED_DEFAULT_PRESET;
+  if (presetId) {
+    await wledSetState({ ps: parseInt(presetId, 10) });
+  } else {
+    // Fallback: just turn on, let WLED's own boot-default segment/effect take over
+    await wledSetState({ on: true });
+  }
+}
+
+app.post('/api/lights/countdown', async (req, res) => {
+  const { step, total } = req.body || {};
+  await wledCountdownStep(step ?? 0, total ?? 5);
+  res.json({ success: true });
+});
+
+app.post('/api/lights/restore', async (req, res) => {
+  await wledRestoreDefault();
+  res.json({ success: true });
+});
+
+// ─── Motion / Sleep State ──────────────────────────────────────────────────────
+// The motion.py daemon POSTs here whenever the PIR sensor changes state.
+// The frontend polls /api/motion/status to decide whether to show the dashboard
+// or go to sleep (black screen).
+let motionState = {
+  active: true,       // is someone currently in front of the mirror (within grace period)?
+  lastMotionAt: Date.now(),
+};
+
+app.post('/api/motion/event', (req, res) => {
+  const { motion } = req.body || {};
+  if (motion) {
+    motionState.lastMotionAt = Date.now();
+    motionState.active = true;
+  }
+  res.json({ success: true });
+});
+
+app.get('/api/motion/status', (req, res) => {
+  const GRACE_MS = (parseInt(process.env.MOTION_GRACE_SECONDS, 10) || 45) * 1000;
+  const msSinceMotion = Date.now() - motionState.lastMotionAt;
+  motionState.active = msSinceMotion < GRACE_MS;
+  res.json({
+    active: motionState.active,
+    msSinceMotion,
+    graceMs: GRACE_MS,
   });
 });
 
