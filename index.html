@@ -49,7 +49,7 @@
       position: absolute;
       inset: 0;
       display: grid;
-      padding: 48px 44px;
+      padding: 56px 52px;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.9s cubic-bezier(0.4, 0, 0.2, 1);
@@ -69,7 +69,7 @@
     .time-block {}
     .time {
       font-family: var(--font-cond);
-      font-size: clamp(72px, 10vw, 108px);
+      font-size: clamp(100px, 14vw, 160px);
       font-weight: 700;
       letter-spacing: -2px;
       line-height: 1;
@@ -77,17 +77,17 @@
     }
     .date {
       font-family: var(--font-cond);
-      font-size: 18px;
+      font-size: 26px;
       font-weight: 300;
       letter-spacing: 3px;
       text-transform: uppercase;
       color: var(--text-dim);
-      margin-top: 6px;
+      margin-top: 8px;
     }
 
     .greeting {
       font-family: var(--font-cond);
-      font-size: clamp(20px, 2.5vw, 28px);
+      font-size: clamp(48px, 6vw, 72px);
       font-weight: 300;
       letter-spacing: 4px;
       text-transform: uppercase;
@@ -155,7 +155,7 @@
 
     /* Right column — selfies */
     .s1-right {
-      width: clamp(140px, 18vw, 220px);
+      width: clamp(180px, 22vw, 280px);
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -170,7 +170,7 @@
 
     .section-label {
       font-family: var(--font-cond);
-      font-size: 11px;
+      font-size: 16px;
       font-weight: 500;
       letter-spacing: 4px;
       text-transform: uppercase;
@@ -182,7 +182,7 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 14px 18px;
+      padding: 20px 24px;
       display: flex;
       align-items: center;
       gap: 18px;
@@ -223,12 +223,12 @@
     }
 
     .team-logo {
-      width: 28px; height: 28px;
+      width: 44px; height: 44px;
       object-fit: contain;
       filter: drop-shadow(0 0 4px rgba(255,255,255,0.1));
     }
     .team-logo-placeholder {
-      width: 28px; height: 28px;
+      width: 44px; height: 44px;
       background: var(--border);
       border-radius: 4px;
     }
@@ -242,7 +242,7 @@
 
     .team-abbr {
       font-family: var(--font-cond);
-      font-size: 20px;
+      font-size: 32px;
       font-weight: 700;
       color: var(--text-bright);
       letter-spacing: 1px;
@@ -254,9 +254,9 @@
 
     .team-score {
       font-family: var(--font-mono);
-      font-size: 24px;
+      font-size: 36px;
       color: var(--text-bright);
-      min-width: 32px;
+      min-width: 44px;
       text-align: right;
     }
 
@@ -275,7 +275,7 @@
 
     .game-datetime {
       font-family: var(--font-cond);
-      font-size: 13px;
+      font-size: 20px;
       font-weight: 300;
       color: var(--text-dim);
       letter-spacing: 1px;
@@ -283,7 +283,7 @@
 
     .game-status {
       font-family: var(--font-cond);
-      font-size: 12px;
+      font-size: 18px;
       font-weight: 600;
       letter-spacing: 2px;
       text-transform: uppercase;
@@ -302,7 +302,7 @@
 
     .no-games {
       font-family: var(--font-cond);
-      font-size: 14px;
+      font-size: 22px;
       color: var(--text-faint);
       letter-spacing: 2px;
     }
@@ -320,7 +320,7 @@
 
     .selfie-label {
       font-family: var(--font-cond);
-      font-size: 10px;
+      font-size: 15px;
       font-weight: 500;
       letter-spacing: 3px;
       text-transform: uppercase;
@@ -357,7 +357,7 @@
     }
     .selfie-placeholder span {
       font-family: var(--font-cond);
-      font-size: 10px;
+      font-size: 15px;
       letter-spacing: 2px;
       color: var(--text-faint);
       text-align: center;
@@ -387,7 +387,7 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 18px 20px;
+      padding: 28px 28px;
       position: relative;
       overflow: hidden;
     }
@@ -401,17 +401,17 @@
 
     .stat-label {
       font-family: var(--font-cond);
-      font-size: 10px;
+      font-size: 16px;
       font-weight: 500;
       letter-spacing: 3px;
       text-transform: uppercase;
       color: var(--text-faint);
-      margin-bottom: 8px;
+      margin-bottom: 12px;
     }
 
     .stat-value {
       font-family: var(--font-cond);
-      font-size: clamp(28px, 3.5vw, 42px);
+      font-size: clamp(48px, 6vw, 72px);
       font-weight: 700;
       color: var(--text-bright);
       line-height: 1;
@@ -419,17 +419,17 @@
 
     .stat-unit {
       font-family: var(--font-cond);
-      font-size: 14px;
+      font-size: 22px;
       font-weight: 300;
       color: var(--text-dim);
-      margin-left: 3px;
+      margin-left: 6px;
     }
 
     .stat-sub {
       font-family: var(--font-cond);
-      font-size: 12px;
+      font-size: 18px;
       color: var(--text-faint);
-      margin-top: 4px;
+      margin-top: 6px;
       letter-spacing: 1px;
     }
 
@@ -444,7 +444,7 @@
 
     #heatmap {
       display: flex;
-      gap: 3px;
+      gap: 4px;
       align-items: flex-end;
       overflow: hidden;
     }
@@ -452,12 +452,12 @@
     .heatmap-col {
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: 4px;
     }
 
     .heatmap-cell {
-      width: 12px; height: 12px;
-      border-radius: 2px;
+      width: 16px; height: 16px;
+      border-radius: 3px;
       background: rgba(255,255,255,0.05);
       transition: background 0.3s;
     }
@@ -475,11 +475,11 @@
     }
     .month-label {
       font-family: var(--font-cond);
-      font-size: 10px;
+      font-size: 13px;
       letter-spacing: 1px;
       color: var(--text-faint);
       text-transform: uppercase;
-      width: 12px; /* same as cell */
+      width: 16px; /* same as cell */
       text-align: left;
       white-space: nowrap;
     }
@@ -492,7 +492,7 @@
     }
     .heatmap-legend span {
       font-family: var(--font-cond);
-      font-size: 10px;
+      font-size: 15px;
       letter-spacing: 2px;
       color: var(--text-faint);
     }
@@ -501,8 +501,8 @@
       gap: 3px;
     }
     .legend-cell {
-      width: 10px; height: 10px;
-      border-radius: 1px;
+      width: 14px; height: 14px;
+      border-radius: 2px;
     }
 
     /* ── Recent Walks ────────────────────────────────────────────── */
@@ -514,15 +514,15 @@
     .walk-list {
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      margin-top: 12px;
+      gap: 12px;
+      margin-top: 16px;
     }
 
     .walk-item {
       display: flex;
       align-items: center;
       gap: 16px;
-      padding: 10px 16px;
+      padding: 18px 24px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -530,17 +530,17 @@
 
     .walk-date {
       font-family: var(--font-cond);
-      font-size: 12px;
+      font-size: 20px;
       letter-spacing: 2px;
       color: var(--text-dim);
-      min-width: 80px;
+      min-width: 110px;
       text-transform: uppercase;
     }
 
     .walk-name {
       flex: 1;
       font-family: var(--font-ui);
-      font-size: 13px;
+      font-size: 22px;
       font-weight: 400;
       color: var(--text-main);
       white-space: nowrap;
@@ -550,15 +550,15 @@
 
     .walk-dist {
       font-family: var(--font-mono);
-      font-size: 16px;
+      font-size: 26px;
       color: var(--accent-blue);
     }
 
     .walk-time {
       font-family: var(--font-cond);
-      font-size: 12px;
+      font-size: 20px;
       color: var(--text-dim);
-      min-width: 40px;
+      min-width: 60px;
       text-align: right;
     }
 
@@ -585,6 +585,63 @@
       transition: opacity 0.05s;
     }
     #flash.on { opacity: 1; }
+
+    /* ── Countdown Overlay ──────────────────────────────────────────── */
+    #countdown-overlay {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 998;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    #countdown-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+    #countdown-number {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: clamp(280px, 55vw, 560px);
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -10px;
+      line-height: 1;
+      animation: countdown-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+      text-shadow: 0 0 80px rgba(255,255,255,0.15);
+    }
+    @keyframes countdown-pop {
+      0%   { transform: scale(1.4); opacity: 0; }
+      100% { transform: scale(1);   opacity: 1; }
+    }
+    #countdown-label {
+      position: absolute;
+      bottom: 80px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 28px;
+      font-weight: 300;
+      letter-spacing: 10px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.25);
+    }
+
+    /* ── Sleep Overlay (motion sensor) ─────────────────────────────── */
+    #sleep-overlay {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 1.2s ease;
+    }
+    #sleep-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
   </style>
 </head>
 <body>
@@ -632,7 +689,7 @@
     <div id="strava-stats">
       <div class="stat-card">
         <div class="stat-label">YTD Distance</div>
-        <div><span class="stat-value" id="st-ytd-dist">--</span><span class="stat-unit">km</span></div>
+        <div><span class="stat-value" id="st-ytd-dist">--</span><span class="stat-unit">mi</span></div>
         <div class="stat-sub" id="st-ytd-walks">-- walks</div>
       </div>
       <div class="stat-card">
@@ -642,12 +699,12 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">Last 4 Weeks</div>
-        <div><span class="stat-value" id="st-recent-dist">--</span><span class="stat-unit">km</span></div>
+        <div><span class="stat-value" id="st-recent-dist">--</span><span class="stat-unit">mi</span></div>
         <div class="stat-sub" id="st-recent-walks">-- walks</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">All-Time</div>
-        <div><span class="stat-value" id="st-all-dist">--</span><span class="stat-unit">km</span></div>
+        <div><span class="stat-value" id="st-all-dist">--</span><span class="stat-unit">mi</span></div>
         <div class="stat-sub" id="st-all-walks">-- walks</div>
       </div>
     </div>
@@ -680,6 +737,16 @@
   </div>
 </div>
 
+
+<!-- Sleep overlay (shown when no motion detected) -->
+<div id="sleep-overlay"></div>
+
+<!-- Countdown overlay -->
+<div id="countdown-overlay">
+  <div id="countdown-number">5</div>
+  <div id="countdown-label">Smile</div>
+</div>
+
 <!-- Flash overlay for selfie -->
 <div id="flash"></div>
 
@@ -697,7 +764,31 @@
 const ROTATE_MS    = 60000;   // 60 seconds per screen
 const REFRESH_GAMES_MS   = 60000;
 const REFRESH_STRAVA_MS  = 300000; // 5 min
+const MOTION_POLL_MS     = 3000;   // how often to check motion status
 const API = '';  // same origin
+
+// ── Motion / Sleep ────────────────────────────────────────────────────────
+let isAsleep = false;
+
+async function pollMotion() {
+  try {
+    const res  = await fetch(`${API}/api/motion/status`);
+    const data = await res.json();
+    const sleepOverlay = document.getElementById('sleep-overlay');
+
+    if (!data.active && !isAsleep) {
+      isAsleep = true;
+      sleepOverlay.classList.add('active');
+    } else if (data.active && isAsleep) {
+      isAsleep = false;
+      sleepOverlay.classList.remove('active');
+    }
+  } catch (err) {
+    console.error('Motion poll failed:', err);
+  }
+}
+setInterval(pollMotion, MOTION_POLL_MS);
+pollMotion();
 
 // ── Clock ──────────────────────────────────────────────────────────────────
 function updateClocks() {
@@ -909,7 +1000,7 @@ async function loadStravaActivities() {
         <div class="walk-item">
           <span class="walk-date">${dateStr}</span>
           <span class="walk-name">${w.name}</span>
-          <span class="walk-dist">${w.distance} km</span>
+          <span class="walk-dist">${w.distance} mi</span>
           <span class="walk-time">${timeStr}</span>
         </div>`;
     }).join('');
@@ -963,9 +1054,9 @@ function buildHeatmap(activities) {
     const mo = firstDay.getMonth();
     if (mo !== lastMonth) {
       lastMonth = mo;
-      return `<div class="month-label" style="flex:0 0 ${(12 + 3)}px">${months[mo]}</div>`;
+      return `<div class="month-label" style="flex:0 0 ${(16 + 4)}px">${months[mo]}</div>`;
     }
-    return `<div class="month-label" style="flex:0 0 ${(12 + 3)}px"></div>`;
+    return `<div class="month-label" style="flex:0 0 ${(16 + 4)}px"></div>`;
   }).join('');
 
   // Render heatmap cells
@@ -990,18 +1081,57 @@ document.addEventListener('keydown', e => {
 });
 
 async function triggerCapture() {
-  // Flash effect
-  const flash = document.getElementById('flash');
-  flash.classList.add('on');
-  setTimeout(() => flash.classList.remove('on'), 120);
+  const overlay = document.getElementById('countdown-overlay');
+  const numEl   = document.getElementById('countdown-number');
+  const flash   = document.getElementById('flash');
+  const TOTAL_STEPS = 5;
 
+  // Pause screen rotation during countdown
+  if (rotateTimer) clearTimeout(rotateTimer);
+  if (progressTimer) clearInterval(progressTimer);
+  progress.style.transition = 'none';
+  progress.style.width = '0%';
+
+  // Show overlay
+  overlay.classList.add('active');
+
+  // Countdown 5 → 1, ramping WLED brightness each step
+  for (let i = TOTAL_STEPS; i >= 1; i--) {
+    numEl.style.animation = 'none';
+    numEl.offsetHeight;  // force reflow to restart animation
+    numEl.style.animation = '';
+    numEl.textContent = i;
+
+    // Ramp lights brighter as we approach 0 (fire-and-forget, don't block countdown on network)
+    fetch(`${API}/api/lights/countdown`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ step: TOTAL_STEPS - i + 1, total: TOTAL_STEPS }),
+    }).catch(err => console.error('Lights ramp failed:', err));
+
+    await new Promise(r => setTimeout(r, 1000));
+  }
+
+  // Flash
+  overlay.classList.remove('active');
+  flash.classList.add('on');
+  setTimeout(() => flash.classList.remove('on'), 180);
+
+  // Fire capture
   try {
     await fetch(`${API}/api/selfie/capture`, { method: 'POST' });
-    // Reload selfies after short delay
-    setTimeout(loadSelfies, 3000);
+    setTimeout(loadSelfies, 4000);
   } catch (err) {
     console.error('Capture failed:', err);
   }
+
+  // Restore default lighting
+  fetch(`${API}/api/lights/restore`, { method: 'POST' })
+    .catch(err => console.error('Lights restore failed:', err));
+
+  // Resume rotation
+  scheduleRotate();
+  startProgress();
 }
 </script>
 </body>
