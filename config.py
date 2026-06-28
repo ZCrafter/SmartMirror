@@ -109,6 +109,13 @@ class Config:
     LAYOUT_RIGHT_COLOR: RGB
     TEST_PIXEL_COLOR: RGB
 
+    STRIP_REVERSED: bool
+
+    FEELS_COOLER_COLOR: RGB
+    FEELS_WARMER_COLOR: RGB
+    FEELS_SAME_COLOR: RGB
+    FEELS_DELTA_FULL_SCALE_F: float
+
     @property
     def LEFT_START(self) -> int:
         return 0
@@ -224,6 +231,13 @@ def load_config() -> Config:
         LAYOUT_TOP_COLOR=env_rgb("LAYOUT_TOP_COLOR", (0, 255, 0)),
         LAYOUT_RIGHT_COLOR=env_rgb("LAYOUT_RIGHT_COLOR", (0, 0, 255)),
         TEST_PIXEL_COLOR=env_rgb("TEST_PIXEL_COLOR", (255, 255, 255)),
+
+        STRIP_REVERSED=env_bool("STRIP_REVERSED", True),
+
+        FEELS_COOLER_COLOR=env_rgb("FEELS_COOLER_COLOR", (0, 170, 255)),
+        FEELS_WARMER_COLOR=env_rgb("FEELS_WARMER_COLOR", (255, 90, 35)),
+        FEELS_SAME_COLOR=env_rgb("FEELS_SAME_COLOR", (160, 110, 255)),
+        FEELS_DELTA_FULL_SCALE_F=env_float("FEELS_DELTA_FULL_SCALE_F", 12),
     )
     cfg.validate()
     return cfg
