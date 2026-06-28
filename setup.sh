@@ -12,7 +12,20 @@ echo "════════════════════════�
 # 1. System deps
 echo "[1/7] Installing system packages..."
 sudo apt-get update -qq
-sudo apt-get install -y nodejs npm python3-pip fswebcam v4l-utils python3-gpiod gpiod unclutter
+sudo apt-get install -y nodejs npm python3-pip fswebcam v4l-utils unclutter
+
+# gpiod Python bindings — package name varies by Pi OS version, try a few
+echo "Installing gpiod Python bindings..."
+if python3 -c "import gpiod" 2>/dev/null; then
+  echo "  gpiod already importable, skipping"
+else
+  sudo apt-get install -y python3-gpiod 2>/dev/null || \
+  sudo apt-get install -y python3-libgpiod 2>/dev/null || \
+  sudo apt-get install -y gpiod 2>/dev/null || true
+  pip3 install gpiod --break-system-packages 2>/dev/null || true
+fi
+python3 -c "import gpiod; print('  gpiod OK:', gpiod.__version__)" || \
+  echo "  ⚠️  WARNING: gpiod still not importable — button/motion scripts will fail. Try: pip3 install gpiod --break-system-packages"
 
 # 2. Python deps
 echo "[2/7] Installing Python packages..."
