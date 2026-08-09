@@ -1,0 +1,10 @@
+[Unit]
+Description=Smart Mirror Weather Display
+
+[Service]
+WorkingDirectory=/opt/smart_mirror
+ExecStart=/usr/bin/python3 /opt/smart_mirror/main.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

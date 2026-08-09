@@ -3,16 +3,14 @@
 # Usage: bash setup.sh
 
 set -e
-MIRROR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MIRROR_USER="${SUDO_USER:-$USER}"
-MIRROR_HOME="$(getent passwd "$MIRROR_USER" | cut -d: -f6)"
+MIRROR_DIR="$HOME/mirror"
 
 echo "═══════════════════════════════════════"
 echo "  Smart Mirror Setup"
 echo "═══════════════════════════════════════"
 
 # 1. System deps
-echo "[1/8] Installing system packages..."
+echo "[1/7] Installing system packages..."
 sudo apt-get update -qq
 sudo apt-get install -y nodejs npm python3-pip fswebcam v4l-utils unclutter
 
@@ -30,11 +28,11 @@ python3 -c "import gpiod; print('  gpiod OK:', gpiod.__version__)" || \
   echo "  ⚠️  WARNING: gpiod still not importable — button/motion scripts will fail. Try: pip3 install gpiod --break-system-packages"
 
 # 2. Python deps
-echo "[2/8] Installing Python packages..."
+echo "[2/7] Installing Python packages..."
 pip3 install requests python-dotenv --break-system-packages
 
 # 3. Node deps
-echo "[3/8] Installing Node packages..."
+echo "[3/7] Installing Node packages..."
 cd "$MIRROR_DIR"
 npm install
 
@@ -46,13 +44,8 @@ if [ ! -f "$MIRROR_DIR/.env" ]; then
   echo "    nano $MIRROR_DIR/.env"
 fi
 
-if [ ! -f "$MIRROR_DIR/Lights/SmartMirror/.env" ]; then
-  cp "$MIRROR_DIR/Lights/SmartMirror/.env.example" "$MIRROR_DIR/Lights/SmartMirror/.env"
-  echo "⚠️  Created Lights/SmartMirror/.env — add Home Assistant and WLED settings."
-fi
-
 # 5. Systemd service — mirror server (runs as root: needed for fswebcam + LED sysfs access)
-echo "[4/8] Installing mirror server service..."
+echo "[4/7] Installing mirror server service..."
 sudo tee /etc/systemd/system/mirror.service > /dev/null <<SERVICEEOF
 [Unit]
 Description=Smart Mirror Node Server
@@ -72,30 +65,8 @@ Environment=NODE_ENV=production
 WantedBy=multi-user.target
 SERVICEEOF
 
-# 6. Systemd service — weather animation. The Node server stops this unit
-# during a selfie and restarts it afterward, preventing competing DDP senders.
-echo "[5/8] Installing weather lighting service..."
-sudo tee /etc/systemd/system/mirror-lights.service > /dev/null <<SERVICEEOF
-[Unit]
-Description=Smart Mirror Weather LEDs
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=$MIRROR_USER
-WorkingDirectory=$MIRROR_DIR/Lights/SmartMirror
-Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/python3 $MIRROR_DIR/Lights/SmartMirror/main.py
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-SERVICEEOF
-
-# 7. Systemd service — button listener (gpiod-based, requires root for GPIO + LED)
-echo "[6/8] Installing button listener service..."
+# 6. Systemd service — button listener (gpiod-based, requires root for GPIO + LED)
+echo "[5/7] Installing button listener service..."
 sudo tee /etc/systemd/system/mirror-button.service > /dev/null <<SERVICEEOF
 [Unit]
 Description=Smart Mirror Button Listener
@@ -113,8 +84,8 @@ RestartSec=3
 WantedBy=multi-user.target
 SERVICEEOF
 
-# 8. Systemd service — optional motion sensor daemon (HC-SR501 PIR)
-echo "[7/8] Installing optional motion sensor service..."
+# 7. Systemd service — motion sensor daemon (HC-SR501 PIR)
+echo "[6/7] Installing motion sensor service..."
 sudo tee /etc/systemd/system/mirror-motion.service > /dev/null <<SERVICEEOF
 [Unit]
 Description=Smart Mirror Motion Sensor (HC-SR501)
@@ -132,24 +103,23 @@ RestartSec=3
 WantedBy=multi-user.target
 SERVICEEOF
 
-# 9. Autostart Chromium in kiosk mode + hide cursor
-echo "[8/8] Setting up kiosk autostart..."
-mkdir -p "$MIRROR_HOME/.config/autostart"
+# 8. Autostart Chromium in kiosk mode + hide cursor
+echo "[7/7] Setting up kiosk autostart..."
+mkdir -p "$HOME/.config/autostart"
 
-cat > "$MIRROR_HOME/.config/autostart/mirror.desktop" <<DESKTOPEOF
+cat > "$HOME/.config/autostart/mirror.desktop" <<DESKTOPEOF
 [Desktop Entry]
 Type=Application
 Name=Smart Mirror
 Exec=bash -c 'sleep 8 && pkill chromium; sleep 2 && chromium --kiosk --disable-infobars --noerrdialogs --disable-session-crashed-bubble --app=http://localhost:3000 --start-maximized --disable-restore-session-state --check-for-update-interval=31536000'
 DESKTOPEOF
 
-cat > "$MIRROR_HOME/.config/autostart/unclutter.desktop" <<DESKTOPEOF
+cat > "$HOME/.config/autostart/unclutter.desktop" <<DESKTOPEOF
 [Desktop Entry]
 Type=Application
 Name=Hide Cursor
 Exec=unclutter -idle 0.1 -root
 DESKTOPEOF
-chown -R "$MIRROR_USER:$MIRROR_USER" "$MIRROR_HOME/.config/autostart"
 
 # 9. udev rule so the LED sysfs paths are writable without per-boot chmod
 echo "Setting up LED permissions rule..."
@@ -158,18 +128,8 @@ SUBSYSTEM=="leds", ACTION=="add", RUN+="/bin/chmod a+w /sys%p/brightness /sys%p/
 UDEVEOF
 
 sudo systemctl daemon-reload
-
-# Stop the old manually-launched weather process, if present. Its exact path is
-# required so unrelated Python processes are never touched.
-while read -r weather_pid; do
-  if [ -n "$weather_pid" ]; then
-    echo "Stopping unmanaged weather process PID $weather_pid"
-    sudo kill "$weather_pid"
-  fi
-done < <(pgrep -f "^(python3|/usr/bin/python3) $MIRROR_DIR/Lights/SmartMirror/main.py$" || true)
-
-sudo systemctl enable mirror.service mirror-lights.service mirror-button.service mirror-motion.service
-sudo systemctl restart mirror.service mirror-lights.service mirror-button.service mirror-motion.service
+sudo systemctl enable mirror.service mirror-button.service mirror-motion.service
+sudo systemctl start mirror.service mirror-button.service mirror-motion.service
 
 echo ""
 echo "═══════════════════════════════════════"
@@ -177,17 +137,11 @@ echo "  ✅ Setup complete!"
 echo ""
 echo "  Next steps:"
 echo "  1. Edit your credentials:  nano $MIRROR_DIR/.env"
-echo "     - DREEVE_URL (preferred) or direct Strava credentials"
+echo "     - Strava client ID/secret/refresh token"
 echo "     - Immich URL/API key/album ID"
-echo "     - Camera countdown timing if adjustment is needed"
-echo "     - DISPLAY_MODE and schedule times/days/timezone"
-echo "     - MOTION_GPIO_PIN / MOTION_GRACE_SECONDS only if using PIR mode"
-echo "  2. Edit lighting config:   nano $MIRROR_DIR/Lights/SmartMirror/.env"
-echo "     - Home Assistant URL/token/entities"
-echo "     - WLED_IP / LED layout"
-echo "     - COUNTDOWN_WHITE_RGB if the selfie light needs color correction"
-echo "  3. Test fitness source:     curl -s http://localhost:3000/api/fitness/status"
-echo "  4. Mount HC-SR501 with its dome unobstructed, then wire:"
-echo "     VCC->5V, GND->GND, OUT->GPIO17 (physical pin 11)"
-echo "  5. Reboot to launch kiosk: sudo reboot"
+echo "     - WLED_URL (your ESP32's IP address)"
+echo "     - MOTION_GPIO_PIN / MOTION_GRACE_SECONDS if you want non-defaults"
+echo "  2. Get Strava token:       node scripts/strava-auth.js"
+echo "  3. Wire HC-SR501: VCC->5V, GND->GND, OUT->GPIO17 (physical pin 11)"
+echo "  4. Reboot to launch kiosk: sudo reboot"
 echo "═══════════════════════════════════════"

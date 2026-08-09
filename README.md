@@ -1,200 +1,308 @@
-# 🪞 Smart Mirror
+# Smart Mirror
 
-A clean, OLED-black smart mirror for Raspberry Pi — dual-screen rotating dashboard with sports scores, Strava walking stats, a daily selfie timeline, motion-activated sleep mode, and synced WLED lighting for selfie capture.
+Raspberry Pi smart-mirror dashboard with scheduled weather LEDs/display, a
+physical selfie button, optional HC-SR501 motion control, webcam capture,
+Dreeve fitness data (with direct Strava fallback), and Immich upload.
 
----
+This package contains one active copy of each component. The older duplicate
+root files, nested Git repository, stale `Lights` prototype, `.env` credentials,
+`node_modules`, cached Python files, and existing selfies are intentionally not
+included.
 
-## Screens
+## Runtime layout
 
-**Screen 1 — Dashboard**
-- Live clock + date
-- NHL Panthers & NFL Cowboys game cards (only within 7 days, live scores when in-game)
-- 3 selfie thumbnails: 1 month, 6 months, 1 year ago (gracefully empty if not yet taken)
-
-**Screen 2 — Strava**
-- YTD / recent / all-time walking stats (in miles)
-- Full-year activity heatmap
-- Recent walks list with distance & time
-
-Screens auto-rotate every 60 seconds. The mirror sleeps (full black) when no motion is detected, and wakes instantly when you walk up.
-
----
-
-## Project Structure
-
-```
+```text
 mirror/
-├── public/
-│   └── index.html          ← Full mirror UI (single-page)
-├── server/
-│   └── index.js            ← Express API server
+├── server/index.js                 Node API and static-file server
+├── public/index.html               Kiosk page
 ├── scripts/
-│   ├── capture.py          ← Webcam selfie + Immich upload
-│   ├── button_listener.py  ← GPIO button daemon (gpiod)
-│   ├── motion_sensor.py    ← HC-SR501 PIR daemon (gpiod)
-│   ├── led_test.py         ← Standalone LED + button wiring test
-│   └── strava-auth.js      ← One-time Strava token helper
-├── .env.example             ← Config template
-├── package.json
-└── setup.sh                 ← One-shot Pi installer
+│   ├── button_listener.py          GPIO18 selfie button
+│   ├── motion_sensor.py            GPIO17 PIR daemon
+│   ├── motion_debug.py             Continuous raw PIR diagnostic
+│   ├── countdown_lights.py         Smooth warm-white selfie ramp
+│   └── capture.py                  Webcam capture and Immich upload
+└── Lights/SmartMirror/
+    ├── main.py                     Weather animation loop
+    ├── wled.py                     Chunked WLED DDP sender
+    └── .env                        HA, WLED, layout, and lighting settings
 ```
 
----
+Four systemd services own the long-running processes:
 
-## Setup
+- `mirror.service`: Node server
+- `mirror-lights.service`: weather LED animation
+- `mirror-button.service`: physical button
+- `mirror-motion.service`: PIR sensor
 
-### 1. Clone to your Pi
+The weather animation must run through `mirror-lights.service`, not from a
+terminal. During a selfie, the server tells that process to yield WLED output,
+runs the white ramp, captures the photo, and then releases weather lighting.
+This prevents two DDP senders from fighting over the strip.
+
+## Upgrade an existing installation
+
+Back up your two private configuration files before replacing the project:
 
 ```bash
-git clone <your-repo> ~/mirror
+cp ~/mirror/.env ~/mirror-root.env.backup
+cp ~/mirror/Lights/SmartMirror/.env ~/mirror-lights.env.backup
+```
+
+Extract this package over `~/mirror`, then restore those `.env` files if your
+extraction program replaced them. The package itself does not contain private
+`.env` files.
+
+Install dependencies and replace the old services:
+
+```bash
 cd ~/mirror
-```
-
-### 2. Configure credentials
-
-```bash
-cp .env.example .env
-nano .env
-```
-
-Fill in:
-- `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` / `STRAVA_REFRESH_TOKEN`
-- `IMMICH_URL` / `IMMICH_API_KEY` / `IMMICH_ALBUM_ID`
-- `WLED_URL` — your ESP32's IP address (e.g. `http://192.168.1.50`)
-- `MOTION_GPIO_PIN` / `MOTION_GRACE_SECONDS` — defaults are fine for most setups
-
-### 3. Get your Strava refresh token
-
-1. Go to [strava.com/settings/api](https://www.strava.com/settings/api) and create an app
-2. Set Callback Domain to `localhost`
-3. Visit this URL in your browser (replace `CLIENT_ID`):
-   ```
-   https://www.strava.com/oauth/authorize?client_id=CLIENT_ID&response_type=code&redirect_uri=http://localhost&approval_prompt=force&scope=read,activity:read_all
-   ```
-4. Approve → copy the `code=` value from the redirect URL
-5. Run:
-   ```bash
-   node scripts/strava-auth.js YOUR_CODE
-   ```
-6. Copy the printed `STRAVA_REFRESH_TOKEN` into `.env`
-
-### 4. Set up Immich album
-
-1. Create a new album in Immich named "Mirror Selfies"
-2. Open the album — copy the UUID from the URL
-3. Create an API key: Account Settings → API Keys
-4. Add both to `.env`
-
-### 5. Run setup
-
-```bash
-chmod +x setup.sh
 bash setup.sh
-sudo reboot
 ```
 
-The mirror launches automatically in Chromium kiosk mode on boot.
+`setup.sh` stops an unmanaged weather process only when its command exactly
+matches this project's weather `main.py`, installs the four services, and
+restarts them.
 
----
-
-## Physical Button (selfie capture)
-
-Wire a momentary push button:
-- One leg → **GPIO 18** (BCM, physical pin 12)
-- Other leg → **GND**
-
-Pressing it:
-1. Shows a fullscreen black countdown (5 → 1), large numbers, "SMILE" label
-2. WLED lights ramp from dim to full white brightness as the countdown approaches 0
-3. Screen flashes white, photo is captured via webcam
-4. Photo uploads to your Immich album
-5. WLED lights restore to their default state/preset
-6. Mirror resumes normal screen rotation
-
-To change the GPIO pin, edit `BUTTON_PIN` in `scripts/button_listener.py`.
-
----
-
-## Motion Sensor (HC-SR501, sleep/wake)
-
-Wire the PIR sensor:
-- **VCC** → Pi 5V (physical pin 2 or 4)
-- **GND** → Pi GND (any ground pin)
-- **OUT** → Pi **GPIO17** (physical pin 11) — or whatever you set `MOTION_GPIO_PIN` to in `.env`
-
-The HC-SR501 has two onboard trimmer pots:
-- **Sensitivity** — detection range (~3m to ~7m)
-- **Time delay** — how long OUT stays HIGH after motion (~5s to ~300s)
-
-Set the time delay trimmer to its **minimum** — the mirror handles the "how long to stay awake" logic in software via `MOTION_GRACE_SECONDS`, so you get one consistent, easily-tunable setting instead of fighting the sensor's own hardware delay. There's also a jumper for trigger mode; set it to **L** (single trigger) for cleaner detection.
-
-The sensor daemon waits 30 seconds on boot for the PIR to stabilize (this is normal — HC-SR501 units are noisy for the first ~30-60s after power-up).
-
-When no motion has been seen for `MOTION_GRACE_SECONDS` (default 45s), the screen fades to black. Any motion wakes it instantly.
-
----
-
-## WLED Lighting (ESP32)
-
-The mirror calls your existing WLED installation over its built-in JSON HTTP API — no changes needed to your ESP32 code.
-
-- **During countdown**: `POST /api/lights/countdown` sends `{on: true, bri: <ramping 60→255>, seg:[{col:[[255,255,255]], fx:0}]}` to WLED, getting brighter each second
-- **After capture**: `POST /api/lights/restore` recalls your default preset
-
-To make "restore" return to your exact existing setup:
-1. In the WLED web UI, save your current default look as a **Preset** (Presets tab → save current state)
-2. Note its preset ID number
-3. Set `WLED_DEFAULT_PRESET=<id>` in `.env`
-
-If left blank, restore just sends `{on: true}`, which works fine for most static WLED setups but won't recall a specific saved effect/preset.
-
----
-
-## Manual commands
+Verify:
 
 ```bash
-# Start/stop services
-sudo systemctl start mirror mirror-button mirror-motion
-sudo systemctl stop mirror mirror-button mirror-motion
-
-# View logs
-journalctl -u mirror -f
-journalctl -u mirror-button -f
-journalctl -u mirror-motion -f
-
-# Test capture manually
-sudo python3 scripts/capture.py
-
-# Test button + LED wiring
-sudo python3 scripts/led_test.py
-
-# Restart everything
-sudo systemctl restart mirror mirror-button mirror-motion
+sudo systemctl status mirror mirror-lights mirror-button mirror-motion --no-pager
 ```
 
----
+Only one weather process should appear:
 
-## Customization
+```bash
+pgrep -af 'Lights/SmartMirror/main.py'
+```
 
-| What | Where |
-|------|-------|
-| Greeting name | `public/index.html` — search `Zach` |
-| Rotation speed | `public/index.html` — `ROTATE_MS` |
-| Teams tracked | `server/index.js` — `TEAMS` object |
-| Button GPIO pin | `scripts/button_listener.py` — `BUTTON_PIN` |
-| Motion GPIO pin | `.env` — `MOTION_GPIO_PIN` |
-| Sleep grace period | `.env` — `MOTION_GRACE_SECONDS` |
-| WLED address | `.env` — `WLED_URL` |
-| WLED default preset | `.env` — `WLED_DEFAULT_PRESET` |
-| Selfie milestones | `server/index.js` — `milestones` array |
+## Selfie sequence
 
----
+Pressing the GPIO18 button now calls `/api/selfie/trigger`. The kiosk page sees
+the trigger and runs the same sequence as the `C` keyboard shortcut:
 
-## APIs Used
+1. Pause weather DDP output while keeping its process and cached data alive.
+2. Show the on-screen five-second countdown.
+3. Ramp all LEDs smoothly at 30 FPS while the webcam opens and settles.
+4. Capture at the end of the countdown and upload the photo.
+5. Stop the white keepalive and immediately resume cached weather frames.
 
-| Service | Auth | Cost |
-|---------|------|------|
-| ESPN (scores) | None | Free |
-| Strava | OAuth2 | Free |
-| Immich | API Key | Self-hosted |
-| WLED | None (local network) | Self-hosted |
+The webcam warm-up is configured in the root `.env`:
+
+```dotenv
+CAMERA_COUNTDOWN_DELAY_SECONDS=4
+CAMERA_SKIP_FRAMES=1
+CAMERA_RESOLUTION=1280x720
+CAMERA_JPEG_QUALITY=95
+```
+
+`fswebcam` initializes the webcam first, then applies the configured delay.
+Four seconds is intended to line the shot up with the end of the five-second
+browser countdown on a Pi 2B. If a test photo is consistently early, increase
+the delay to `5`; if it is consistently late, decrease it to `3`. The camera's
+activity LED should turn on near the start of the countdown, not after zero.
+
+Selfie white balance is configured in `Lights/SmartMirror/.env`:
+
+```dotenv
+COUNTDOWN_WHITE_RGB=255,190,120
+COUNTDOWN_MIN_BRIGHTNESS=45
+COUNTDOWN_FPS=30
+```
+
+If the light remains blue, reduce the final number. If it looks too orange,
+increase it toward 255.
+
+## Dreeve fitness data
+
+Dreeve is the successor to Statistics for Strava. Merely running it at the old
+URL and port does not redirect this mirror's old Strava API requests. Configure
+the mirror to read Dreeve's generated activity table instead:
+
+```dotenv
+DREEVE_URL=http://YOUR_DREEVE_IP:PORT
+DREEVE_ACTIVITIES_PATH=/api/activity/data-table.json
+DREEVE_SPORT_TYPES=Walk
+DREEVE_CACHE_SECONDS=300
+```
+
+Keep `DREEVE_URL` free of a trailing slash. If Dreeve is hosted under a path,
+include that path in the URL, for example
+`http://192.168.1.50:8080/dreeve`. The existing `STRAVA_*` settings are ignored
+when `DREEVE_URL` is set, but may remain in `.env`.
+
+Restart and test:
+
+```bash
+sudo systemctl restart mirror
+curl -s http://localhost:3000/api/fitness/status
+curl -s http://localhost:3000/api/strava/stats
+curl -s http://localhost:3000/api/strava/activities | head -c 500
+```
+
+`/api/fitness/status` should report `"source":"dreeve"` and a nonzero
+`matchingActivities` value. A zero count with no error usually means the
+Dreeve sport type is not named `Walk`; add its exact type to the comma-separated
+`DREEVE_SPORT_TYPES` setting. A 404 normally means the Dreeve base path is
+missing from `DREEVE_URL`. A connection error means the Pi cannot reach that
+host and port.
+
+Dreeve's activity endpoint is generated data. Newly imported workouts will not
+appear on the mirror until Dreeve has rebuilt its site/API output. The mirror
+caches successful Dreeve reads for five minutes by default.
+
+## Display and lighting schedule
+
+The dashboard and weather LEDs can follow the same schedule. Outside the
+schedule, the kiosk page is covered in black and the weather process sends the
+configured `SCHEDULE_OFF_COLOR` once per second. The repeated frame matters
+because WLED would otherwise leave realtime mode and return to its saved
+preset.
+
+Add these settings to the root `~/mirror/.env`:
+
+```dotenv
+DISPLAY_MODE=schedule
+SCHEDULE_TIMEZONE=America/New_York
+SCHEDULE_MON=05:00-21:00
+SCHEDULE_TUE=05:00-21:00
+SCHEDULE_WED=05:00-21:00
+SCHEDULE_THU=05:00-21:00
+SCHEDULE_FRI=05:00-21:00
+SCHEDULE_SAT=07:00-12:00,17:00-22:00
+SCHEDULE_SUN=07:00-21:00
+```
+
+Times use 24-hour `HH:MM` format. Each day may contain any number of
+comma-separated windows. The Saturday example turns on twice: 7:00 AM-noon and
+5:00-10:00 PM. An end time is the first inactive minute, so `05:00-21:00` is
+active through 8:59 PM and turns off at 9:00 PM. The timezone name automatically
+handles EST/EDT changes.
+
+Use `off` to disable an entire day or `all-day` for a full day:
+
+```dotenv
+SCHEDULE_SUN=off
+```
+
+One window cannot cross midnight. Split it across the two affected days, such
+as `20:00-24:00` on Monday and `00:00-02:00` on Tuesday. If any per-day setting
+exists, the seven `SCHEDULE_MON` through `SCHEDULE_SUN` settings replace the old
+`SCHEDULE_DAYS`, `SCHEDULE_START`, and `SCHEDULE_END` format.
+
+After editing `.env`, restart both processes that read it:
+
+```bash
+sudo systemctl restart mirror mirror-lights
+```
+
+Check the server's decision:
+
+```bash
+curl -s http://localhost:3000/api/display/status
+```
+
+The JSON `active` value should be `true` inside the schedule and `false`
+outside it. The physical selfie button remains available after hours: it
+temporarily wakes the countdown/camera sequence and returns the dashboard and
+LEDs to black afterward.
+
+"Off" does not shut down the Raspberry Pi or remove power from the monitor.
+The kiosk page becomes black and the lighting service sends recurring
+schedule-off frames to WLED. The Pi, monitor electronics, browser, and services
+keep running so the mirror can wake immediately at the next scheduled time.
+Actual HDMI or monitor power control is a separate, display-server-specific
+feature.
+
+The schedule-off LED color is configured separately from the active glyph's
+background in `~/mirror/Lights/SmartMirror/.env`:
+
+```dotenv
+SCHEDULE_OFF_COLOR=0,0,0
+```
+
+`0,0,0` is fully dark. A value such as `2,2,2` provides a very dim neutral
+glow. This setting is deliberately separate from `BACKGROUND_COLOR`, which may
+be visible while the weather glyph is active.
+
+Other modes are available:
+
+```dotenv
+DISPLAY_MODE=always
+```
+
+keeps the dashboard and weather LEDs on continuously. `DISPLAY_MODE=motion`
+uses the PIR for the dashboard while preserving the former LED behavior.
+
+## Optional motion sensor
+
+HC-SR501 wiring uses BCM numbering:
+
+- VCC to Pi 5 V
+- GND to Pi ground
+- OUT to GPIO17, physical pin 11
+
+The PIR dome must have an unobstructed view. Plexiglass and one-way mirror film
+block the thermal infrared signal, so mount it below or beside the mirror.
+
+The daemon logs HIGH/LOW transitions and sends a heartbeat every five seconds
+while the PIR output stays HIGH. The server keeps the display awake for
+`MOTION_GRACE_SECONDS` after the latest heartbeat.
+
+The schedule is now the default. After mounting the sensor below the mirror,
+switch the root `.env` to motion mode and restart the server:
+
+```dotenv
+DISPLAY_MODE=motion
+```
+
+```bash
+sudo systemctl restart mirror mirror-motion
+```
+
+Live log:
+
+```bash
+sudo journalctl -u mirror-motion -f
+```
+
+Raw continuous test:
+
+```bash
+sudo systemctl stop mirror-motion
+sudo python3 ~/mirror/scripts/motion_debug.py
+sudo systemctl start mirror-motion
+```
+
+## Logs and manual tests
+
+```bash
+sudo journalctl -u mirror -f
+sudo journalctl -u mirror-lights -f
+sudo journalctl -u mirror-button -f
+sudo journalctl -u mirror-motion -f
+```
+
+Trigger the complete browser sequence:
+
+```bash
+curl -X POST http://localhost:3000/api/selfie/trigger
+```
+
+Test only the smooth light ramp (stop weather first):
+
+```bash
+sudo systemctl stop mirror-lights
+cd ~/mirror
+SMART_MIRROR_DIR="$PWD/Lights/SmartMirror" python3 scripts/countdown_lights.py ramp 5
+sudo systemctl start mirror-lights
+```
+
+## Configuration
+
+- Root `.env`: server, Dreeve/Strava, Immich, camera, schedule, GPIO, and
+  grace-period settings
+- `Lights/SmartMirror/.env`: Home Assistant, WLED, LED layout, weather colors,
+  animation timing, and selfie white balance
+
+Start from the corresponding `.env.example` files on a new installation. Never
+commit or share the real `.env` files because they contain access tokens.

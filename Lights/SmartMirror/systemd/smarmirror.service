@@ -1,0 +1,16 @@
+[Unit]
+Description=Smart Mirror Weather LEDs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=admin
+WorkingDirectory=/home/admin/smart_mirror
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/admin/smart_mirror/venv/bin/python /home/admin/smart_mirror/main.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

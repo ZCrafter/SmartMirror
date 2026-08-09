@@ -1,0 +1,17 @@
+.env
+**/.env
+
+node_modules/
+**/node_modules/
+
+*.zip
+*.swp
+
+__pycache__/
+**/__pycache__/
+
+*.pyc
+public/selfies/
+__pycache__/
+**/__pycache__/
+*.pyc
