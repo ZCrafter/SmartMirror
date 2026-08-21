@@ -92,7 +92,7 @@ app.get('/api/games', async (req, res) => {
 // breaking change.
 const DREEVE_URL = String(process.env.DREEVE_URL || '').trim().replace(/\/+$/, '');
 const DREEVE_ACTIVITIES_PATH = String(
-  process.env.DREEVE_ACTIVITIES_PATH || '/api/activity/data-table.json'
+  process.env.DREEVE_ACTIVITIES_PATH || '/api/fragment/data/activities/data-table'
 ).trim();
 const DREEVE_SPORT_TYPES = new Set(
   String(process.env.DREEVE_SPORT_TYPES || 'Walk')
