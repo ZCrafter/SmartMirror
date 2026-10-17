@@ -23,47 +23,85 @@ const TEAMS = {
 async function fetchUpcomingGames() {
   const games = [];
   const now = new Date();
-  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const lookaheadMs = Number(process.env.SPORTS_LOOKAHEAD_DAYS || 7) * 24 * 60 * 60 * 1000;
+  const postgameMs = Number(process.env.SPORTS_POSTGAME_DAYS || 2) * 24 * 60 * 60 * 1000;
 
   for (const [sport, team] of Object.entries(TEAMS)) {
     try {
-      const now2 = new Date();
-      const yr = now2.getFullYear();
-      // NHL season spans two years; if before August use current/prev, else current/next
-      const nhlSeason = now2.getMonth() < 7 ? `${yr-1}${yr}` : `${yr}${yr+1}`;
-      const season = sport === 'nfl' ? String(yr) : nhlSeason;
-      const url = `https://site.api.espn.com/apis/site/v2/sports/${sport === 'nhl' ? 'hockey' : 'football'}/${sport}/teams/${team.id}/schedule?season=${season}`;
-      const res = await axios.get(url, { timeout: 5000 });
-      const events = res.data?.events || [];
+      let events = [];
+
+      if (sport === 'nhl') {
+        // ESPN's team schedule endpoint omits preseason games.
+        // Use the daily scoreboard so preseason and regular-season games
+        // are both available.
+        const startDate = new Date(now.getTime() - postgameMs);
+        const endDate = new Date(now.getTime() + lookaheadMs);
+
+        for (
+          let day = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+          day <= endDate;
+          day.setDate(day.getDate() + 1)
+        ) {
+          const date = day.toISOString().slice(0, 10).replace(/-/g, '');
+          const url = `https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard?dates=${date}`;
+          const res = await axios.get(url, { timeout: 15000 });
+          events.push(...(res.data?.events || []));
+        }
+      } else {
+        const yr = now.getFullYear();
+        const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/${team.id}/schedule?season=${yr}`;
+        const res = await axios.get(url, { timeout: 15000 });
+        events = res.data?.events || [];
+      }
 
       for (const event of events) {
         const gameDate = new Date(event.date);
         const diffMs = gameDate - now;
-        // Within next 7 days OR currently live
-        if (diffMs > -3 * 60 * 60 * 1000 && diffMs < sevenDaysMs) {
-          const comp = event.competitions?.[0];
-          const home = comp?.competitors?.find(c => c.homeAway === 'home');
-          const away = comp?.competitors?.find(c => c.homeAway === 'away');
-          const status = comp?.status;
+        const comp = event.competitions?.[0];
+        const home = comp?.competitors?.find(c => c.homeAway === 'home');
+        const away = comp?.competitors?.find(c => c.homeAway === 'away');
 
+        if (!home || !away) continue;
+
+        // For the NHL scoreboard, only keep games involving our team.
+        const teamId = String(team.id);
+        if (
+          sport === 'nhl' &&
+          ![String(home.team?.id), String(away.team?.id)].includes(teamId)
+        ) {
+          continue;
+        }
+
+        const status = comp?.status;
+        const isLive = status?.type?.state === 'in';
+        const isFinal = status?.type?.completed === true || status?.type?.state === 'post';
+
+        if (diffMs >= -postgameMs && diffMs < lookaheadMs) {
           games.push({
             sport,
             league: sport.toUpperCase(),
             teamName: team.name,
-            homeTeam: home?.team?.abbreviation || '',
-            awayTeam: away?.team?.abbreviation || '',
-            homeScore: home?.score || '0',
-            awayScore: away?.score || '0',
-            homeLogo: home?.team?.logo || `https://a.espncdn.com/i/teamlogos/${sport}/500/${String(home?.team?.abbreviation || '').toLowerCase()}.png`,
-            awayLogo: away?.team?.logo || `https://a.espncdn.com/i/teamlogos/${sport}/500/${String(away?.team?.abbreviation || '').toLowerCase()}.png`,
+            homeTeam: home.team?.abbreviation || '',
+            awayTeam: away.team?.abbreviation || '',
+            homeScore: String(home?.score?.displayValue ?? home?.score ?? 0),
+            awayScore: String(away?.score?.displayValue ?? away?.score ?? 0),
+            homeLogo: home.team?.logo || '',
+            awayLogo: away.team?.logo || '',
             date: event.date,
-            displayDate: gameDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
-            displayTime: gameDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-            statusType: status?.type?.name || 'scheduled', // scheduled | in-progress | final
+            displayDate: gameDate.toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric'
+            }),
+            displayTime: gameDate.toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit'
+            }),
+            statusType: status?.type?.name || 'scheduled',
             statusDetail: status?.displayClock || '',
             period: status?.period || 0,
-            isLive: status?.type?.name === 'in-progress',
-            isFinal: status?.type?.name === 'STATUS_FINAL',
+            isLive,
+            isFinal,
           });
         }
       }
@@ -74,15 +112,6 @@ async function fetchUpcomingGames() {
 
   return games;
 }
-
-app.get('/api/games', async (req, res) => {
-  try {
-    const games = await fetchUpcomingGames();
-    res.json({ games });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // ─── Fitness data (Dreeve preferred, direct Strava kept as fallback) ─────────
 //
@@ -158,6 +187,7 @@ function normalizeDreeveActivity(row) {
   };
 }
 
+
 async function fetchDreeveActivities({ force = false } = {}) {
   const url = dreeveActivitiesUrl();
   if (!url) throw new Error('DREEVE_URL is not set');
@@ -205,6 +235,16 @@ async function refreshStravaToken() {
   stravaTokenCache = res.data;
   return stravaTokenCache.access_token;
 }
+
+app.get('/api/games', async (req, res) => {
+  try {
+    const games = await fetchUpcomingGames();
+    res.json(games);
+  } catch (err) {
+    console.error('Games API error:', err.message);
+    res.status(500).json({ error: 'Unable to fetch games' });
+  }
+});
 
 app.get('/api/strava/stats', async (req, res) => {
   try {

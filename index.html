@@ -761,7 +761,7 @@
 
 <script>
 // ── Config ─────────────────────────────────────────────────────────────────
-const ROTATE_MS    = 60000;   // 60 seconds per screen
+const ROTATE_MS = Number(process.env.ROTATE_SECONDS || 7) * 1000;
 const REFRESH_GAMES_MS   = 60000;
 const REFRESH_STRAVA_MS  = 300000; // 5 min
 const MOTION_POLL_MS     = 3000;   // how often to check motion status

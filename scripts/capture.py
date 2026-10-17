@@ -40,6 +40,21 @@ def capture_photo(delay_seconds: float = 0) -> Path:
         log('fswebcam not found — installing...')
         subprocess.run(['apt-get', 'install', '-y', 'fswebcam'], check=True)
 
+    # Apply USB webcam white-balance settings from .env.
+    # Keep auto-exposure enabled; exposure_time_absolute is inactive in Auto Mode.
+    auto_wb = os.getenv('CAMERA_AUTO_WHITE_BALANCE', '0').strip().lower() in ('1', 'true', 'yes', 'on')
+    controls = [('white_balance_automatic', int(auto_wb))]
+    if not auto_wb:
+        controls.append(('white_balance_temperature', int(os.getenv('CAMERA_WHITE_BALANCE_TEMPERATURE', '6500'))))
+
+    for control, value in controls:
+        result = subprocess.run(
+            ['v4l2-ctl', '-d', '/dev/video0', '--set-ctrl', f'{control}={value}'],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            log(f'Camera control {control}={value} failed: {result.stderr.strip()}')
+
     # Try /dev/video0 first (USB webcam), then video1 as fallback
     for device in ['/dev/video0', '/dev/video1']:
         if not Path(device).exists():

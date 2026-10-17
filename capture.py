@@ -14,7 +14,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Load .env from project root
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / '.env')
 
 IMMICH_URL     = os.getenv('IMMICH_URL', 'http://192.168.200.119:2283')
@@ -28,17 +28,34 @@ def capture_photo() -> Path:
     timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     filename  = SAVE_DIR / f'selfie_{timestamp}.jpg'
 
-    # Use libcamera on Pi 5, fallback to fswebcam for USB webcam
-    cmd_libcam = ['libcamera-still', '-o', str(filename), '--nopreview', '-t', '500']
-    cmd_fswebcam = ['fswebcam', '-r', '1920x1080', '--no-banner', str(filename)]
+    # USB webcam: fixed white balance + automatic exposure.
+    # Skip initial frames so exposure can settle before saving.
+    camera_controls = {
+        'white_balance_automatic': 0,
+        'white_balance_temperature': 6500,
+        'auto_exposure': 0,
+    }
 
-    for cmd in [cmd_libcam, cmd_fswebcam]:
-        result = subprocess.run(cmd, capture_output=True)
-        if result.returncode == 0 and filename.exists():
-            print(f'Captured: {filename}')
-            return filename
+    for control, value in camera_controls.items():
+        subprocess.run(
+            ['v4l2-ctl', '-d', '/dev/video0', '--set-ctrl', f'{control}={value}'],
+            capture_output=True,
+        )
 
-    raise RuntimeError('No camera backend succeeded (tried libcamera-still, fswebcam)')
+    cmd_fswebcam = ['fswebcam', '-d', '/dev/video0', '--skip', '5', '-r', '1280x720', '--no-banner', str(filename)]
+
+    result = subprocess.run(cmd_fswebcam, capture_output=True, text=True)
+    print(f'fswebcam return code: {result.returncode}')
+    if result.stdout:
+        print(result.stdout)
+    if result.stderr:
+        print(result.stderr)
+
+    if result.returncode == 0 and filename.exists():
+        print(f'Captured: {filename}')
+        return filename
+
+    raise RuntimeError('fswebcam capture failed')
 
 def upload_to_immich(filepath: Path) -> dict:
     if not IMMICH_API_KEY or not IMMICH_ALBUM_ID:

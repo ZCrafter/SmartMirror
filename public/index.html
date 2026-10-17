@@ -195,8 +195,8 @@
       left: 0; top: 0; bottom: 0;
       width: 3px;
     }
-    .game-card.nhl::before { background: #4fc3f7; }
-    .game-card.nfl::before { background: #69f0ae; }
+    .game-card.nhl::before { background: #C8102E; }
+    .game-card.nfl::before { background: #003594; }
 
     .game-league {
       font-family: var(--font-cond);
@@ -250,7 +250,8 @@
     .team-abbr.tracked {
       color: var(--accent-blue);
     }
-    .nfl .team-abbr.tracked { color: var(--green); }
+    .nfl .team-abbr.tracked { color: #003594; }
+    .nhl .team-abbr.tracked { color: #C8102E; }
 
     .team-score {
       font-family: var(--font-mono);
@@ -682,6 +683,28 @@
       flex: none;
     }
 
+    .game-card.today-game {
+      border-color: rgba(255, 255, 255, 0.28);
+      box-shadow: 0 0 14px rgba(255, 255, 255, 0.10);
+    }
+
+    .today-game .game-datetime {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-bright);
+      letter-spacing: 0.5px;
+    }
+
+    .game-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .game-group + .game-group {
+      margin-top: 8px;
+    }
+
 </style>
 </head>
 <body>
@@ -700,7 +723,6 @@
     <div class="s1-left">
       <!-- Games -->
       <div id="games-section">
-        <div class="section-label">Upcoming Games</div>
         <div id="games-list">
           <div class="loading-pulse"></div>
         </div>
@@ -801,7 +823,7 @@
 
 <script>
 // ── Config ─────────────────────────────────────────────────────────────────
-const ROTATE_MS    = 60000;   // 60 seconds per screen
+const ROTATE_MS    = 7000;   // 60 seconds per screen
 const REFRESH_GAMES_MS   = 60000;
 const REFRESH_STRAVA_MS  = 300000; // 5 min
 const DISPLAY_POLL_MS    = 3000;   // how often to check schedule/motion status
@@ -923,7 +945,8 @@ async function loadGames() {
   try {
     const res  = await fetch(`${API}/api/games`);
     const data = await res.json();
-    const games = data.games || [];
+    const games = (Array.isArray(data) ? data : (data.games || []))
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
 
     if (games.length === 0) {
       list.innerHTML = `<span class="no-games">NO GAMES WITHIN 7 DAYS</span>`;
@@ -944,17 +967,20 @@ async function loadGames() {
         statusHtml = `<span class="game-status upcoming">${g.displayTime}</span>`;
       }
 
-      const logoOrPlaceholder = (logo, abbr) =>
-        logo
-          ? `<img class="team-logo" src="${logo}" alt="${abbr}" />`
-          : `<div class="team-logo-placeholder"></div>`;
+      const logoOrPlaceholder = (logo, abbr, sport) => {
+        const fallback = sport === 'nfl'
+          ? `https://a.espncdn.com/i/teamlogos/nfl/500/${String(abbr).toLowerCase()}.png`
+          : `https://a.espncdn.com/i/teamlogos/nhl/500/${String(abbr).toLowerCase()}.png`;
+        const src = logo || fallback;
+        return `<img class="team-logo" src="${src}" alt="${abbr}" onerror="this.outerHTML='<div class=\'team-logo-placeholder\'></div>'" />`;
+      };
 
       return `
         <div class="game-card ${g.sport}">
           <div class="game-league">${g.league}</div>
           <div class="game-teams">
             <div class="game-matchup">
-              ${logoOrPlaceholder(g.awayLogo, g.awayTeam)}
+              ${logoOrPlaceholder(g.awayLogo, g.awayTeam, g.sport)}
               <div class="team-info">
                 <span class="team-abbr${isTracked(g.awayTeam) ? ' tracked' : ''}">${g.awayTeam}</span>
                 ${(g.isLive || g.isFinal) ? `<span class="team-score">${g.awayScore}</span>` : ''}
@@ -962,7 +988,7 @@ async function loadGames() {
             </div>
             <div class="game-separator"></div>
             <div class="game-matchup">
-              ${logoOrPlaceholder(g.homeLogo, g.homeTeam)}
+              ${logoOrPlaceholder(g.homeLogo, g.homeTeam, g.sport)}
               <div class="team-info">
                 <span class="team-abbr${isTracked(g.homeTeam) ? ' tracked' : ''}">${g.homeTeam}</span>
                 ${(g.isLive || g.isFinal) ? `<span class="team-score">${g.homeScore}</span>` : ''}
