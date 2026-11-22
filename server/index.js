@@ -86,6 +86,9 @@ async function fetchUpcomingGames() {
             homeScore: String(home?.score?.displayValue ?? home?.score ?? 0),
             awayScore: String(away?.score?.displayValue ?? away?.score ?? 0),
             homeLogo: home.team?.logo || '',
+          homeRecord: await fetchTeamSeasonRecord(sport, home.team?.id),
+          awayRecord: await fetchTeamSeasonRecord(sport, away.team?.id),
+          
             awayLogo: away.team?.logo || '',
             date: event.date,
             displayDate: gameDate.toLocaleDateString('en-US', {
@@ -160,6 +163,58 @@ function dreeveActivityName(row) {
   return String(row?.searchables || 'Walk').trim() || 'Walk';
 }
 
+
+function getTeamRecord(competitor) {
+  const records = competitor?.records || competitor?.record;
+  if (Array.isArray(records)) {
+    const overall = records.find(r => r.type === 'total' || r.name === 'overall' || r.type === 'overall') || records[0];
+    return overall?.summary || overall?.displayValue || '';
+  }
+  if (typeof records === 'string') return records;
+  return records?.summary || records?.displayValue || '';
+}
+
+
+const teamRecordCache = {};
+async function fetchTeamSeasonRecord(sport, teamId) {
+  const cacheKey = `${sport}-${teamId}`;
+  if (teamRecordCache[cacheKey] && Date.now() - teamRecordCache[cacheKey].time < 3600000) {
+    return teamRecordCache[cacheKey].record;
+  }
+  try {
+    const sportPath = sport === 'nfl' ? 'football/nfl' : 'hockey/nhl';
+    const url = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/teams/${teamId}`;
+    const res = await axios.get(url, { timeout: 10000 });
+    const teamData = res.data?.team;
+    let recordStr = '';
+    const records = teamData?.record?.items || teamData?.records || teamData?.record;
+    if (Array.isArray(records)) {
+      const overall = records.find(r => r.type === 'total' || r.name === 'overall' || r.type === 'overall') || records[0];
+      recordStr = overall?.summary || overall?.displayValue || '';
+      if (sport === 'nhl' && overall) {
+        const st = Object.fromEntries((overall.stats || []).map(x => [x.name, x.value]));
+        const m = String(recordStr).match(/^(\d+)-(\d+)$/);
+        if (m) {
+          const otl = st.otLosses != null
+            ? st.otLosses
+            : (st.gamesPlayed != null ? st.gamesPlayed - Number(m[1]) - Number(m[2]) : null);
+          if (otl != null && otl >= 0) recordStr = `${m[1]}-${m[2]}-${otl}`;
+        }
+      }
+    } else if (typeof records === 'string') {
+      recordStr = records;
+    } else if (records?.summary) {
+      recordStr = records.summary;
+    } else if (teamData?.recordSummary) {
+      recordStr = teamData.recordSummary;
+    }
+    teamRecordCache[cacheKey] = { record: recordStr, time: Date.now() };
+    return recordStr;
+  } catch (err) {
+    return '';
+  }
+}
+
 function dateInMirrorTimezone(epochSeconds) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: process.env.SCHEDULE_TIMEZONE || 'America/New_York',
@@ -172,9 +227,10 @@ function dateInMirrorTimezone(epochSeconds) {
 }
 
 function normalizeDreeveActivity(row) {
-  const epochSeconds = Number(row?.sort?.['start-date'])
-    || Math.floor(Number(row?.filterables?.['start-date'] || 0) / 1000);
-  const distanceMeters = Number(row?.sort?.distance || 0);
+  const dateStr = row?.startDateLocal;
+  const epochSeconds = dateStr ? Math.floor(new Date(dateStr).getTime() / 1000) : 0;
+  const distanceMeters = Number(row?.distanceInMeter || 0);
+  const movingTime = Number(row?.movingTimeInSeconds || 0);
 
   if (!epochSeconds) return null;
   return {
@@ -182,12 +238,12 @@ function normalizeDreeveActivity(row) {
     startTimestamp: epochSeconds,
     distance: (distanceMeters * 0.000621371).toFixed(2),
     distanceMeters,
-    movingTime: Number(row?.sort?.['moving-time'] || 0),
-    name: dreeveActivityName(row),
+    movingTime,
+    name: row?.name || 'Walk',
   };
 }
 
-
+const DREEVE_API_KEY = String(process.env.DREEVE_API_KEY || '').trim();
 async function fetchDreeveActivities({ force = false } = {}) {
   const url = dreeveActivitiesUrl();
   if (!url) throw new Error('DREEVE_URL is not set');
@@ -196,17 +252,38 @@ async function fetchDreeveActivities({ force = false } = {}) {
     return dreeveActivityCache.activities;
   }
 
-  const response = await axios.get(url, {
-    timeout: 15000,
-    headers: { Accept: 'application/json' },
-  });
-  if (!Array.isArray(response.data)) {
-    throw new Error(`Dreeve returned ${typeof response.data}, expected an activity array`);
+  const headers = { Accept: 'application/json' };
+  if (DREEVE_API_KEY) {
+    headers['Authorization'] = `Bearer ${DREEVE_API_KEY}`;
   }
 
-  const activities = response.data
+  const fetchPage = page => axios.get(url, {
+    timeout: 15000,
+    headers,
+    params: { 'pagination[page]': page },
+  });
+
+  const response = await fetchPage(1);
+  const rawData = response.data;
+  let rows = Array.isArray(rawData) ? rawData : (rawData?.activities || []);
+
+  // Dreeve returns 25 rows per page; fetch every remaining page.
+  const totalPages = Math.min(Number(rawData?.pagination?.totalPages || 1), 50);
+  for (let page = 2; page <= totalPages; page++) {
+    const next = await fetchPage(page);
+    const more = Array.isArray(next.data) ? next.data : (next.data?.activities || []);
+    rows = rows.concat(more);
+  }
+  const seenIds = new Set();
+  rows = rows.filter(r => r?.id == null || (!seenIds.has(r.id) && seenIds.add(r.id)));
+
+  if (!Array.isArray(rows)) {
+    throw new Error(`Dreeve returned unexpected data format, expected an activity array`);
+  }
+
+  const activities = rows
     .filter(row => DREEVE_SPORT_TYPES.has(
-      String(row?.filterables?.sportType || '').trim().toLowerCase()
+      String(row?.sportType || '').trim().toLowerCase()
     ))
     .map(normalizeDreeveActivity)
     .filter(Boolean);
@@ -453,6 +530,41 @@ app.get('/api/selfies', async (req, res) => {
   } catch (err) {
     console.error('Immich error:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+// ─── Timelapse Photos Integration ───────────────────────────────────────────
+app.get('/api/timelapse/photos', async (req, res) => {
+  try {
+    const immichUrl = process.env.IMMICH_URL;
+    const immichKey = process.env.IMMICH_API_KEY;
+    const albumId   = process.env.IMMICH_ALBUM_ID;
+
+    if (!immichUrl || !immichKey || !albumId) {
+      return res.json({ photos: [] });
+    }
+
+    const albumRes = await axios.get(`${immichUrl}/api/albums/${albumId}`, {
+      headers: { 'x-api-key': immichKey },
+    });
+
+    const assets = albumRes.data.assets || [];
+    
+    // Sort assets chronologically (oldest to newest for timelapse)
+    assets.sort((a, b) => new Date(a.fileCreatedAt) - new Date(b.fileCreatedAt));
+
+    const photos = assets.map(asset => ({
+      id: asset.id,
+      url: `/api/selfie/thumb/${asset.id}`,
+      date: asset.fileCreatedAt,
+    }));
+
+    res.json({ photos });
+  } catch (err) {
+    console.error('Timelapse Immich error:', err.message);
+    res.status(500).json({ error: err.message, photos: [] });
   }
 });
 
