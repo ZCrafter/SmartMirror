@@ -41,9 +41,49 @@ COUNTDOWN_MIN_BRIGHTNESS = max(
     0, min(255, int(os.getenv("COUNTDOWN_MIN_BRIGHTNESS", "45")))
 )
 COUNTDOWN_WHITE_RGB = parse_rgb(
-    os.getenv("COUNTDOWN_WHITE_RGB", "255,190,120"),
-    (255, 190, 120),
+    os.getenv("COUNTDOWN_WHITE_RGB", "255,255,255"),
+    (255, 255, 255),
 )
+
+
+import json
+import signal
+import urllib.request
+
+
+def _wled_json(method, payload=None):
+    try:
+        req = urllib.request.Request(
+            f"http://{WLED_IP}/json/state",
+            data=json.dumps(payload).encode() if payload is not None else None,
+            method=method,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=2) as r:
+            return json.load(r)
+    except Exception as exc:
+        print(f"WLED master brightness call failed: {exc}", flush=True)
+        return None
+
+
+_saved_bri = None
+
+
+def master_up():
+    """Raise WLED master brightness to 255 so DDP frames are not dimmed."""
+    global _saved_bri
+    state = _wled_json("GET")
+    if state:
+        _saved_bri = state.get("bri")
+    _wled_json("POST", {"bri": 255, "transition": 0})
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
+
+def master_restore():
+    global _saved_bri
+    if _saved_bri is not None:
+        _wled_json("POST", {"bri": _saved_bri, "transition": 7})
+        _saved_bri = None
 
 
 def scale_color(color: tuple[int, int, int], brightness: float) -> tuple[int, int, int]:
@@ -64,6 +104,7 @@ def run_ramp(wled: WLED, duration_seconds: float, hold_seconds: float = 0.0) -> 
     duration_seconds = max(1.0, min(15.0, duration_seconds))
     frame_interval = 1.0 / COUNTDOWN_FPS
     started = time.monotonic()
+    last_json = 0.0
 
     while True:
         elapsed = time.monotonic() - started
@@ -72,7 +113,8 @@ def run_ramp(wled: WLED, duration_seconds: float, hold_seconds: float = 0.0) -> 
         brightness = COUNTDOWN_MIN_BRIGHTNESS + (
             (255 - COUNTDOWN_MIN_BRIGHTNESS) * eased
         )
-        send_solid(wled, scale_color(COUNTDOWN_WHITE_RGB, brightness))
+        eff = 255 * (0.03 ** (1.0 - eased))
+        send_solid(wled, scale_color(COUNTDOWN_WHITE_RGB, eff))
 
         if progress >= 1.0:
             break
@@ -116,7 +158,11 @@ def main() -> int:
     if command == "ramp":
         duration = float(sys.argv[2]) if len(sys.argv) > 2 else 5.0
         hold_seconds = float(sys.argv[3]) if len(sys.argv) > 3 else 0.0
-        run_ramp(wled, duration, hold_seconds)
+        master_up()
+        try:
+            run_ramp(wled, duration, hold_seconds)
+        finally:
+            master_restore()
         return 0
 
     try:

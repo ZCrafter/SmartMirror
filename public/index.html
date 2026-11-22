@@ -683,16 +683,23 @@
       flex: none;
     }
 
-    .game-card.today-game {
-      border-color: rgba(255, 255, 255, 0.28);
-      box-shadow: 0 0 14px rgba(255, 255, 255, 0.10);
+        .game-card.today-game.nhl {
+      border: 2px solid #C8102E;
+      box-shadow: 0 0 35px 8px rgba(200, 16, 46, 0.85), 0 0 70px 15px rgba(200, 16, 46, 0.4), inset 0 0 20px rgba(200, 16, 46, 0.5);
+      background: rgba(200, 16, 46, 0.12);
+    }
+
+    .game-card.today-game.nfl {
+      border: 2px solid #003594;
+      box-shadow: 0 0 35px 8px rgba(0, 53, 148, 0.85), 0 0 70px 15px rgba(0, 53, 148, 0.4), inset 0 0 20px rgba(0, 53, 148, 0.4);
+      background: rgba(0, 53, 148, 0.12);
     }
 
     .today-game .game-datetime {
       font-weight: 700;
-      font-size: 14px;
+      font-size: 20px;
       color: var(--text-bright);
-      letter-spacing: 0.5px;
+      letter-spacing: 1px;
     }
 
     .game-group {
@@ -705,7 +712,15 @@
       margin-top: 8px;
     }
 
-</style>
+
+        .team-record {
+          font-size: 0.8rem;
+          color: var(--text-faint);
+          margin-left: 8px;
+          font-weight: 500;
+        }
+        </style>
+        
 </head>
 <body>
 
@@ -954,6 +969,11 @@ async function loadGames() {
     }
 
     list.innerHTML = games.map(g => {
+      const gameDate = new Date(g.date);
+      const now = new Date();
+      const gameStr = gameDate.toLocaleDateString('en-CA');
+      const nowStr = now.toLocaleDateString('en-CA');
+      const isToday = gameStr === nowStr;
       const isTracked = (abbr) =>
         (g.sport === 'nhl' && abbr === 'FLA') ||
         (g.sport === 'nfl' && abbr === 'DAL');
@@ -976,13 +996,14 @@ async function loadGames() {
       };
 
       return `
-        <div class="game-card ${g.sport}">
+        <div class="game-card ${g.sport}${isToday ? ' today-game' : ''}">
           <div class="game-league">${g.league}</div>
           <div class="game-teams">
             <div class="game-matchup">
               ${logoOrPlaceholder(g.awayLogo, g.awayTeam, g.sport)}
               <div class="team-info">
                 <span class="team-abbr${isTracked(g.awayTeam) ? ' tracked' : ''}">${g.awayTeam}</span>
+                <span class="team-record">${g.awayRecord || ""}</span>
                 ${(g.isLive || g.isFinal) ? `<span class="team-score">${g.awayScore}</span>` : ''}
               </div>
             </div>
@@ -991,6 +1012,7 @@ async function loadGames() {
               ${logoOrPlaceholder(g.homeLogo, g.homeTeam, g.sport)}
               <div class="team-info">
                 <span class="team-abbr${isTracked(g.homeTeam) ? ' tracked' : ''}">${g.homeTeam}</span>
+                <span class="team-record">${g.homeRecord || ""}</span>
                 ${(g.isLive || g.isFinal) ? `<span class="team-score">${g.homeScore}</span>` : ''}
               </div>
             </div>
@@ -1232,16 +1254,19 @@ async function triggerCapture() {
     await lightsPromise;
 
     overlay.classList.remove('active');
+    flash.style.transition = 'opacity 0.05s';
     flash.classList.add('on');
-    setTimeout(() => flash.classList.remove('on'), 180);
 
     const captureResult = await capturePromise;
+    flash.style.transition = 'opacity 0.8s';
+    flash.classList.remove('on');
     if (!captureResult.ok) throw captureResult.error;
     setTimeout(loadSelfies, 4000);
   } catch (err) {
     console.error('Selfie sequence failed:', err);
   } finally {
     overlay.classList.remove('active');
+    flash.classList.remove('on');
     try {
       const restoreRes = await fetch(`${API}/api/lights/restore`, { method: 'POST' });
       if (!restoreRes.ok) throw new Error(`Lighting restore HTTP ${restoreRes.status}`);
